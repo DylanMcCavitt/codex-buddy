@@ -8,13 +8,25 @@ from typing import Any, Dict, Optional
 
 from .ble import Publisher
 from .ble import log
-from .state import IDLE_SNAPSHOT, Snapshot, sanitized_preview, snapshot_for_hook
+from .state import (
+    IDLE_SNAPSHOT,
+    Snapshot,
+    hook_event_name,
+    known_hook_events,
+    sanitized_preview,
+    snapshot_for_hook,
+)
+
+
+KNOWN_HOOK_EVENTS = set(known_hook_events())
 
 
 class BuddyDaemon:
     def __init__(self, publisher: Publisher) -> None:
         self.publisher = publisher
         self._current: Snapshot = IDLE_SNAPSHOT
+        self._last_hook_event: Optional[str] = None
+        self._event_counts: Dict[str, int] = {}
         self._idle_timer: Optional[threading.Timer] = None
         self._keepalive_stop = threading.Event()
         self._keepalive_thread: Optional[threading.Thread] = None
@@ -24,6 +36,14 @@ class BuddyDaemon:
     def current(self) -> Snapshot:
         with self._lock:
             return self._current
+
+    @property
+    def diagnostics(self) -> Dict[str, Any]:
+        with self._lock:
+            return {
+                "last_hook_event": self._last_hook_event,
+                "event_counts": dict(self._event_counts),
+            }
 
     def start(self) -> None:
         self.publisher.start()
@@ -43,19 +63,23 @@ class BuddyDaemon:
 
     def handle_hook(self, payload: Dict[str, Any]) -> Snapshot:
         snapshot, idle_delay = snapshot_for_hook(payload)
-        self.publish(snapshot)
+        self.publish(snapshot, hook_event=_safe_hook_event_name(payload))
         if idle_delay is not None:
             self._schedule_idle(idle_delay)
         return snapshot
 
-    def publish(self, snapshot: Snapshot) -> None:
+    def publish(self, snapshot: Snapshot, hook_event: Optional[str] = None) -> None:
         with self._lock:
             if self._idle_timer:
                 self._idle_timer.cancel()
                 self._idle_timer = None
+            if hook_event is not None:
+                self._last_hook_event = hook_event
+                self._event_counts[hook_event] = self._event_counts.get(hook_event, 0) + 1
             self._current = snapshot
         self.publisher.publish(snapshot.to_wire())
-        log(f"[codex-buddy] {sanitized_preview(snapshot)}")
+        event_prefix = f"event={hook_event!r} " if hook_event is not None else ""
+        log(f"[codex-buddy] {event_prefix}{sanitized_preview(snapshot)}")
 
     def _republish_current(self) -> None:
         with self._lock:
@@ -84,7 +108,13 @@ def make_handler(daemon: BuddyDaemon):
             if self.path != "/healthz":
                 self.send_error(404)
                 return
-            body = json.dumps({"ok": True, "current": daemon.current.to_wire()}).encode("utf-8")
+            body = json.dumps(
+                {
+                    "ok": True,
+                    "current": daemon.current.to_wire(),
+                    "diagnostics": daemon.diagnostics,
+                }
+            ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -122,6 +152,13 @@ def make_handler(daemon: BuddyDaemon):
             return
 
     return HookHandler
+
+
+def _safe_hook_event_name(payload: Dict[str, Any]) -> str:
+    event = hook_event_name(payload)
+    if event in KNOWN_HOOK_EVENTS:
+        return event
+    return "unknown"
 
 
 def serve(daemon: BuddyDaemon, host: str, port: int) -> None:

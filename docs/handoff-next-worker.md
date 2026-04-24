@@ -17,9 +17,13 @@ buddy.
   Buddy UI.
 - USB serial bridge mode was added and confirmed working with the plugged-in
   device at `/dev/cu.usbserial-7552A41038`.
+- CB-001 was completed on branch `feat/codex-hooks-discovery-packet`.
+  The bridge now records sanitized hook diagnostics in `/healthz` and logs the
+  hook event name that produced each snapshot.
 
-No remote is configured yet, so the local commit cannot be pushed until a
-remote is added.
+Remote `origin` is configured at `git@github.com:DylanMcCavitt/codex-buddy.git`.
+At the start of CB-001, `main` and `origin/main` both pointed at MVP commit
+`039c120`.
 
 ## How To Run
 
@@ -46,6 +50,16 @@ line over USB serial. The device should stop showing `No Claude connected`
 after a keepalive heartbeat if the initial serial write was missed during
 device reset.
 
+To inspect hook diagnostics while the bridge is running:
+
+```bash
+curl -fsS http://127.0.0.1:47833/healthz
+```
+
+Expected behavior: the response includes `diagnostics.last_hook_event` and
+`diagnostics.event_counts`. These fields are local bridge diagnostics and are
+not sent to the device heartbeat payload.
+
 ## Important Implementation Notes
 
 - The MVP is display-only. It does not approve or deny Codex actions.
@@ -65,32 +79,42 @@ device reset.
 PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```
 
-Result: `7 tests` passed.
+Result on CB-001 branch: `9 tests` passed.
 
 Also verified:
 
 - `python3 -m py_compile src/codex_buddy_bridge/*.py .codex/hooks/codex_buddy_hook.py tests/*.py`
 - `.codex/hooks.json` parses as JSON.
-- `codex features list` reports `codex_hooks` as `true`.
+- `~/.codex/config.toml` has `[features].codex_hooks = true`.
+- With `PYTHONPATH=src python3 -u -m codex_buddy_bridge bridge --dry-run --port 47833`
+  running in this repo, real Codex Desktop shell tool calls reached the bridge
+  as `PreToolUse` and `PostToolUse`.
+- With that same dry-run bridge already running, a fresh Codex Desktop user
+  prompt reached the bridge as `UserPromptSubmit` and updated the snapshot to
+  `Codex working`.
+- An explicitly simulated `PermissionRequest` payload reached the bridge as
+  `approval needed` with only the display-only approval prompt in the heartbeat.
 
 Firmware build/upload was not run by the agent because `pio` was initially not
 installed. The user later flashed the device successfully.
 
+Nested `/opt/homebrew/bin/codex exec` was not usable as a prompt-hook probe
+because that CLI is `codex-cli 0.36.0`, needed a `model_reasoning_effort`
+compatibility override, and then failed against the configured `gpt-5.5` model
+before producing a `UserPromptSubmit` hook. The verified prompt-hook evidence
+came from this Codex Desktop session instead.
+
 ## Next Good Tasks
 
-1. Add a remote and push the current commit.
-2. Make hook registration work reliably in the actual Codex Desktop session;
-   if hooks do not fire, inspect Codex hook config discovery for repo-local
-   `.codex/hooks.json`.
-3. Revisit BLE mode on macOS:
+1. Revisit BLE mode on macOS:
    - test from a Terminal/Python process with Bluetooth permission
    - capture crash details if CoreBluetooth still exits
    - keep serial mode as the fallback
-4. Add a tiny `make` or script wrapper for:
+2. Add a tiny `make` or script wrapper for:
    - `bridge-serial`
    - `bridge-dry-run`
    - tests
-5. Later milestone: rebrand firmware strings/device name from Claude to Codex.
+3. Later milestone: rebrand firmware strings/device name from Claude to Codex.
 
 ## Known Commands
 

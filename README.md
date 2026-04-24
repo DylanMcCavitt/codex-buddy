@@ -44,6 +44,16 @@ For local testing without hardware:
 PYTHONPATH=src python3 -m codex_buddy_bridge bridge --dry-run
 ```
 
+Check the bridge and hook diagnostics:
+
+```bash
+curl -fsS http://127.0.0.1:47833/healthz
+```
+
+The `diagnostics` block reports the last sanitized hook event name and event
+counts seen by the bridge. These diagnostics are local to the HTTP health check;
+they are not added to the device heartbeat payload.
+
 Codex hooks are repo-local in `.codex/hooks.json`. The hook script exits
 successfully if the bridge is not running, so normal Codex work is not blocked.
 
@@ -70,6 +80,8 @@ PlatformIO is not vendored in this repo.
 The MVP intentionally does not forward raw prompts, transcript snippets, full
 commands, file paths, or approval details over BLE. `PermissionRequest` only
 sends a display-only prompt that tells you to approve in the Codex app.
+Unknown or malformed hook event names are recorded as `unknown` in diagnostics
+instead of being reflected raw.
 
 ## References
 
