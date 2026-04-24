@@ -5,44 +5,16 @@ This script is intentionally best-effort. It must never block or alter Codex
 behavior if the bridge is not running.
 """
 
-import json
-import os
 import sys
-import time
-import urllib.error
-import urllib.request
+from pathlib import Path
 
 
-DEFAULT_URL = "http://127.0.0.1:47833/hook"
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "src"
+if SRC.exists():
+    sys.path.insert(0, str(SRC))
 
-
-def main() -> int:
-    try:
-        payload = json.load(sys.stdin)
-    except Exception:
-        return 0
-
-    envelope = {
-        "received_at": time.time(),
-        "hook": payload,
-    }
-    data = json.dumps(envelope, separators=(",", ":")).encode("utf-8")
-    url = os.environ.get("CODEX_BUDDY_HOOK_URL", DEFAULT_URL)
-    timeout = float(os.environ.get("CODEX_BUDDY_HOOK_TIMEOUT", "0.35"))
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=timeout):
-            pass
-    except (OSError, urllib.error.URLError, TimeoutError, ValueError):
-        pass
-
-    return 0
+from codex_buddy_bridge.hook import main
 
 
 if __name__ == "__main__":
