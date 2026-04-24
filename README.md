@@ -53,6 +53,9 @@ For local testing without hardware:
 make bridge-dry-run
 ```
 
+Foreground mode is the best debugging path because logs stream to the terminal
+and also append to `~/.codex-buddy/bridge.log`.
+
 To run BLE mode directly:
 
 ```bash
@@ -127,6 +130,46 @@ Expected behavior: `diagnostics.event_counts` increments for a hook such as
 `UserPromptSubmit`, `PreToolUse`, or `PostToolUse`, and the published device
 snapshot remains sanitized.
 
+## Background LaunchAgent
+
+The macOS LaunchAgent path is opt-in and does not require admin privileges. It
+writes `~/Library/LaunchAgents/com.codex-buddy.bridge.plist` and runs the bridge
+as a user service with serial auto-discovery enabled.
+
+Preview the plist install first:
+
+```bash
+codex-buddy launch-agent install --dry-run
+```
+
+Install and start the background bridge:
+
+```bash
+codex-buddy launch-agent install
+```
+
+Force a known serial port if auto-discovery is not enough:
+
+```bash
+codex-buddy launch-agent install --serial-port /dev/cu.usbserial-7552A41038
+```
+
+Manage the service:
+
+```bash
+codex-buddy launch-agent status
+codex-buddy launch-agent restart
+codex-buddy launch-agent stop
+codex-buddy launch-agent start
+codex-buddy launch-agent uninstall
+```
+
+The LaunchAgent uses `RunAtLoad` and `KeepAlive`, binds the hook endpoint on
+`127.0.0.1:47833`, and writes bridge logs to `~/.codex-buddy/bridge.log`.
+Launchd stderr goes to `~/.codex-buddy/bridge.err.log`. The bridge still uses
+the same sanitized hook handling as foreground mode; if the service is stopped,
+Codex work is not blocked because the hook forwarder remains best-effort.
+
 ## Firmware
 
 The upstream firmware targets M5StickC Plus and PlatformIO:
@@ -155,6 +198,10 @@ instead of being reflected raw.
 
 The user-level hook installer changes only `~/.codex/hooks.json`, and only when
 run without `--dry-run`.
+
+The LaunchAgent installer changes only
+`~/Library/LaunchAgents/com.codex-buddy.bridge.plist`, and only when run without
+`--dry-run`.
 
 ## References
 

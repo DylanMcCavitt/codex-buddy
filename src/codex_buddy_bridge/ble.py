@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import queue
 import threading
 import time
@@ -13,7 +14,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Sequence
 NUS_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 NUS_RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
 NUS_TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
-LOG_PATH = Path.home() / ".codex-buddy" / "bridge.log"
+DEFAULT_LOG_PATH = Path.home() / ".codex-buddy" / "bridge.log"
 KNOWN_USB_SERIAL_VIDS = {0x0403, 0x10C4, 0x1A86, 0x2341, 0x239A, 0x303A}
 USB_SERIAL_DEVICE_PARTS = (
     "usbserial",
@@ -45,9 +46,12 @@ USB_SERIAL_TEXT_PARTS = (
 def log(message: str) -> None:
     line = f"{datetime.now().isoformat(timespec='seconds')} {message}"
     print(line, flush=True)
+    if os.environ.get("CODEX_BUDDY_LOG_STDOUT_ONLY") == "1":
+        return
     try:
-        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with LOG_PATH.open("a", encoding="utf-8") as f:
+        log_path = Path(os.environ.get("CODEX_BUDDY_LOG_PATH", str(DEFAULT_LOG_PATH))).expanduser()
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
     except OSError:
         pass
