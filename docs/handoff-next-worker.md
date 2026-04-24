@@ -3,7 +3,7 @@
 Date: 2026-04-24
 Current issue: AGE-275
 Branch: `feat/age-275-launchagent`
-PR: not opened yet
+PR: https://github.com/DylanMcCavitt/codex-buddy/pull/3
 
 ## Status
 
@@ -31,7 +31,8 @@ AGE-275 is implemented and verified locally.
 
 ## Next
 
-Open the PR, include this handoff summary, and move AGE-275 to review.
+Review PR #3, merge if good, then run the durable LaunchAgent install from the
+canonical checkout or installed package.
 
 ## Risks
 
