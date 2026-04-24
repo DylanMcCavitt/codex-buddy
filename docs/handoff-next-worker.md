@@ -20,6 +20,9 @@ buddy.
 - CB-001 was completed on branch `feat/codex-hooks-discovery-packet`.
   The bridge now records sanitized hook diagnostics in `/healthz` and logs the
   hook event name that produced each snapshot.
+- AGE-273 implementation is on branch `feat/age-273-user-level-hooks`.
+  The branch adds an explicit `codex-buddy hooks install|uninstall` command for
+  opt-in user-level `~/.codex/hooks.json` entries.
 
 Remote `origin` is configured at `git@github.com:DylanMcCavitt/codex-buddy.git`.
 At the start of CB-001, `main` and `origin/main` both pointed at MVP commit
@@ -60,12 +63,35 @@ Expected behavior: the response includes `diagnostics.last_hook_event` and
 `diagnostics.event_counts`. These fields are local bridge diagnostics and are
 not sent to the device heartbeat payload.
 
+To preview the user-level hooks install without changing global config:
+
+```bash
+PYTHONPATH=src python3 -m codex_buddy_bridge hooks install --dry-run
+```
+
+To opt in globally:
+
+```bash
+codex-buddy hooks install
+```
+
+To disable the global integration:
+
+```bash
+codex-buddy hooks uninstall
+```
+
+The installer preserves unrelated user hooks and removes only command entries
+marked with `CODEX_BUDDY_HOOK_MANAGED=1`.
+
 ## Important Implementation Notes
 
 - The MVP is display-only. It does not approve or deny Codex actions.
 - The hook forwarder exits `0` even if the bridge daemon is down.
 - The bridge sanitizes hook payloads and does not send raw prompts, command
   strings, file paths, transcript text, or approval details to the device.
+- User-level hook installation is explicit. It changes `~/.codex/hooks.json`
+  only when `codex-buddy hooks install` is run without `--dry-run`.
 - BLE mode exists, but on this Mac the process crashed around CoreBluetooth
   scanning. USB serial mode is the validated path for now.
 - The firmware is intentionally not rebranded yet; seeing `Claude Buddy` is
@@ -77,9 +103,11 @@ not sent to the device heartbeat payload.
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests -v
+PYTHONPATH=src python3 -m codex_buddy_bridge hooks install --dry-run --config /tmp/codex-buddy-hooks-test.json
 ```
 
 Result on CB-001 branch: `9 tests` passed.
+Current AGE-273 branch result: `16 tests` passed.
 
 Also verified:
 
@@ -94,6 +122,12 @@ Also verified:
   `Codex working`.
 - An explicitly simulated `PermissionRequest` payload reached the bridge as
   `approval needed` with only the display-only approval prompt in the heartbeat.
+- User-level hook config install, merge, idempotency, dry-run, invalid-config,
+  and uninstall behavior is covered with temp config paths. The real
+  `~/.codex/hooks.json` was not modified during automated verification.
+- With a dry-run bridge running on port `47833`, the managed hook command was
+  invoked from `/tmp` and `/healthz` reported `UserPromptSubmit: 1`, confirming
+  the installed command path is not tied to the `codex-buddy` cwd.
 
 Firmware build/upload was not run by the agent because `pio` was initially not
 installed. The user later flashed the device successfully.
@@ -114,7 +148,11 @@ came from this Codex Desktop session instead.
    - `bridge-serial`
    - `bridge-dry-run`
    - tests
-3. Later milestone: rebrand firmware strings/device name from Claude to Codex.
+3. Run the manual AGE-273 global-hook check after opting in:
+   - start the dry-run bridge
+   - run a Codex prompt from a different workspace
+   - confirm `/healthz` event counts update
+4. Later milestone: rebrand firmware strings/device name from Claude to Codex.
 
 ## Known Commands
 
