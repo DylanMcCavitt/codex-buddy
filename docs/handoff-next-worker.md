@@ -1,13 +1,13 @@
 # Codex Buddy Handoff
 
 Date: 2026-04-24
-Current issue: AGE-275
-Branch: `feat/age-275-launchagent`
-PR: https://github.com/DylanMcCavitt/codex-buddy/pull/3
+Current issue: AGE-275 complete
+Branch: `main`
+PR: https://github.com/DylanMcCavitt/codex-buddy/pull/3 (merged)
 
 ## Status
 
-AGE-275 is implemented and verified locally.
+AGE-275 is merged to `main` at `8bcc41440d4601b532763e6b46229ae00cf983e8`.
 
 - AGE-274 PR #2 was already merged into `main` at
   `05048f22cb6ce571c1a4001cc6dc7406b148985d`.
@@ -31,17 +31,27 @@ AGE-275 is implemented and verified locally.
 
 ## Next
 
-Review PR #3, merge if good, then run the durable LaunchAgent install from the
-canonical checkout or installed package.
+- Next ready Linear candidate from the Foundation milestone: AGE-272
+  `Align Codex Buddy repo workflow docs with delivery conventions`.
+- If skipping docs, AGE-276 starts the firmware identity track:
+  `Rebrand firmware from Claude Buddy to Codex Buddy`.
+- For a durable local background install after merge, run from the canonical
+  checkout or installed package rather than the disposable worktree:
+
+  ```bash
+  python3 -m pip install -e .
+  codex-buddy hooks install
+  codex-buddy launch-agent install
+  codex-buddy launch-agent status
+  ```
 
 ## Risks
 
 - BLE is still not revisited; USB serial remains the validated path.
 - Firmware is still upstream-branded as Claude Buddy.
 - Hardware approval/deny remains out of scope and disabled.
-- The manual verification used this disposable worktree as `PYTHONPATH`; a
-  durable install should be run from the canonical checkout or installed package
-  after merge.
+- The manual verification used the issue worktree as `PYTHONPATH`; a durable
+  install should be run from the canonical checkout or installed package.
 
 ## Files
 
