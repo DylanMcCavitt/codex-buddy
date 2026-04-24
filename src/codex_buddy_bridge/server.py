@@ -40,10 +40,15 @@ class BuddyDaemon:
     @property
     def diagnostics(self) -> Dict[str, Any]:
         with self._lock:
-            return {
+            diagnostics = {
                 "last_hook_event": self._last_hook_event,
                 "event_counts": dict(self._event_counts),
             }
+        diagnostics_fn = getattr(self.publisher, "diagnostics", None)
+        publisher_diagnostics = diagnostics_fn() if callable(diagnostics_fn) else {}
+        if publisher_diagnostics:
+            diagnostics["publisher"] = publisher_diagnostics
+        return diagnostics
 
     def start(self) -> None:
         self.publisher.start()

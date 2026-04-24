@@ -12,7 +12,7 @@ license = { text = "MIT" }
 authors = [
   { name = "Dylan McCavitt" }
 ]
-dependencies = []
+dependencies = ["pyserial>=3.5"]
 
 [project.optional-dependencies]
 ble = ["bleak>=0.22"]

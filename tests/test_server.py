@@ -12,6 +12,7 @@ class RecordingPublisher:
         self.payloads = []
         self.started = False
         self.stopped = False
+        self.diagnostic_payload = {}
 
     def start(self):
         self.started = True
@@ -21,6 +22,9 @@ class RecordingPublisher:
 
     def publish(self, payload):
         self.payloads.append(payload)
+
+    def diagnostics(self):
+        return dict(self.diagnostic_payload)
 
 
 class ServerTests(unittest.TestCase):
@@ -125,6 +129,50 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(body["diagnostics"]["last_hook_event"], "unknown")
         self.assertEqual(body["diagnostics"]["event_counts"]["unknown"], 1)
         self.assertNotIn("raw prompt text", str(body["diagnostics"]))
+
+    def test_healthz_includes_publisher_diagnostics_without_prompt_data(self):
+        publisher = RecordingPublisher()
+        publisher.diagnostic_payload = {
+            "transport": "serial",
+            "selected_port": "/dev/cu.usbserial-7552A41038",
+            "connection_state": "connected",
+            "last_publish_time": "2026-04-24T12:00:00",
+            "last_serial_error": None,
+        }
+        daemon = BuddyDaemon(publisher)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(daemon))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            raw = json.dumps(
+                {
+                    "hook": {
+                        "hook_event_name": "UserPromptSubmit",
+                        "prompt": "prompt text must not be reported",
+                    }
+                }
+            ).encode("utf-8")
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{server.server_port}/hook",
+                data=raw,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=5):
+                pass
+
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{server.server_port}/healthz",
+                timeout=5,
+            ) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        self.assertEqual(body["diagnostics"]["publisher"]["transport"], "serial")
+        self.assertEqual(body["diagnostics"]["publisher"]["connection_state"], "connected")
+        self.assertNotIn("prompt text must not be reported", str(body["diagnostics"]))
 
 
 if __name__ == "__main__":
