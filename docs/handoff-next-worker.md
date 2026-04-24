@@ -1,15 +1,31 @@
 # Codex Buddy Handoff
 
 Date: 2026-04-24
-Current issue: AGE-275 complete
+Current issue: AGE-272 complete
 Branch: `main`
-PR: https://github.com/DylanMcCavitt/codex-buddy/pull/3 (merged)
+PR: (pending merge from `feat/age-272-workflow-docs`)
 
 ## Status
 
-AGE-275 is merged to `main` at `8bcc41440d4601b532763e6b46229ae00cf983e8`.
+AGE-272 is implemented on branch `feat/age-272-workflow-docs` and aligns repo
+workflow docs with the delivery conventions already used in AGE-273/274/275.
 
-- AGE-274 PR #2 was already merged into `main` at
+- Added `docs/workflow-playbook/README.md` to codify branch/PR/issue packet and
+  handoff conventions.
+- Added `docs/workflow-playbook/issues/README.md` to define packet naming and
+  minimum required sections.
+- Added the AGE-272 issue packet:
+  `docs/workflow-playbook/issues/AGE-272-workflow-docs-alignment.md`.
+- Updated `README.md` with a Delivery Workflow section that points workers to
+  the canonical playbook docs.
+
+## Prior Issue Context (AGE-275)
+
+AGE-275 is already merged to `main` at
+`8bcc41440d4601b532763e6b46229ae00cf983e8` and remains the operational basis
+for AGE-276 work.
+
+- AGE-274 PR #2 was merged to `main` at
   `05048f22cb6ce571c1a4001cc6dc7406b148985d`.
 - Added a testable LaunchAgent renderer in
   `src/codex_buddy_bridge/launch_agent.py`.
@@ -31,10 +47,8 @@ AGE-275 is merged to `main` at `8bcc41440d4601b532763e6b46229ae00cf983e8`.
 
 ## Next
 
-- Next ready Linear candidate from the Foundation milestone: AGE-272
-  `Align Codex Buddy repo workflow docs with delivery conventions`.
-- If skipping docs, AGE-276 starts the firmware identity track:
-  `Rebrand firmware from Claude Buddy to Codex Buddy`.
+- AGE-272 docs alignment is complete; the next ready Linear candidate is
+  AGE-276 `Rebrand firmware from Claude Buddy to Codex Buddy`.
 - For a durable local background install after merge, run from the canonical
   checkout or installed package rather than the disposable worktree:
 
@@ -47,6 +61,8 @@ AGE-275 is merged to `main` at `8bcc41440d4601b532763e6b46229ae00cf983e8`.
 
 ## Risks
 
+- Workflow conventions are now documented, but there is no CI gate yet to
+  enforce packet presence or handoff updates.
 - BLE is still not revisited; USB serial remains the validated path.
 - Firmware is still upstream-branded as Claude Buddy.
 - Hardware approval/deny remains out of scope and disabled.
@@ -56,6 +72,9 @@ AGE-275 is merged to `main` at `8bcc41440d4601b532763e6b46229ae00cf983e8`.
 ## Files
 
 - `README.md`
+- `docs/workflow-playbook/README.md`
+- `docs/workflow-playbook/issues/README.md`
+- `docs/workflow-playbook/issues/AGE-272-workflow-docs-alignment.md`
 - `src/codex_buddy_bridge/ble.py`
 - `src/codex_buddy_bridge/cli.py`
 - `src/codex_buddy_bridge/launch_agent.py`
@@ -65,6 +84,7 @@ AGE-275 is merged to `main` at `8bcc41440d4601b532763e6b46229ae00cf983e8`.
 ## Checks
 
 - `make test` passed: 29 tests.
+- `python3 -m py_compile src/codex_buddy_bridge/*.py tests/*.py`
 - `PYTHONPATH=src python3 -m codex_buddy_bridge launch-agent install --dry-run --no-start`
 - `python3 -m py_compile src/codex_buddy_bridge/*.py .codex/hooks/codex_buddy_hook.py tests/*.py`
 - `PYTHONPATH=src python3 -m codex_buddy_bridge launch-agent install`
