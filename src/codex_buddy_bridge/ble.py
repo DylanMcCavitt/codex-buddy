@@ -7,13 +7,39 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Sequence
+from typing import Callable, Dict, Iterable, List, Optional, Sequence
 
 
 NUS_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 NUS_RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
 NUS_TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
 LOG_PATH = Path.home() / ".codex-buddy" / "bridge.log"
+KNOWN_USB_SERIAL_VIDS = {0x0403, 0x10C4, 0x1A86, 0x2341, 0x239A, 0x303A}
+USB_SERIAL_DEVICE_PARTS = (
+    "usbserial",
+    "usbmodem",
+    "wchusbserial",
+    "slab_usbtouart",
+    "ttyusb",
+    "ttyacm",
+)
+USB_SERIAL_TEXT_PARTS = (
+    "m5stack",
+    "m5stick",
+    "esp32",
+    "esp32-s",
+    "cp210",
+    "silicon labs",
+    "ch340",
+    "ch910",
+    "ftdi",
+    "usb serial",
+    "usb-serial",
+    "usb to uart",
+    "usb-to-uart",
+    "wch",
+    "uart",
+)
 
 
 def log(message: str) -> None:
@@ -27,6 +53,80 @@ def log(message: str) -> None:
         pass
 
 
+def likely_serial_ports(port_infos: Iterable[object]) -> List[str]:
+    ranked: List[tuple[int, int, str]] = []
+    for port_info in port_infos:
+        device = _port_device(port_info)
+        if not device:
+            continue
+        score = serial_port_score(port_info)
+        if score <= 0:
+            continue
+        ranked.append((score, _device_preference(device), device))
+    ranked.sort(key=lambda item: (-item[0], item[1], item[2]))
+    return [device for _, _, device in ranked]
+
+
+def choose_serial_port(port_infos: Iterable[object]) -> Optional[str]:
+    ports = likely_serial_ports(port_infos)
+    if not ports:
+        return None
+    return ports[0]
+
+
+def serial_port_score(port_info: object) -> int:
+    device = _port_device(port_info)
+    if not device:
+        return 0
+
+    text = _port_search_text(port_info)
+    if "bluetooth" in text:
+        return 0
+
+    device_lower = device.lower()
+    has_usb_serial_device = any(part in device_lower for part in USB_SERIAL_DEVICE_PARTS)
+    has_usb_serial_text = any(part in text for part in USB_SERIAL_TEXT_PARTS)
+    vid = getattr(port_info, "vid", None)
+    has_known_usb_vid = isinstance(vid, int) and vid in KNOWN_USB_SERIAL_VIDS
+    if not (has_usb_serial_device or has_usb_serial_text or has_known_usb_vid):
+        return 0
+
+    score = 0
+    if has_usb_serial_device:
+        score += 6
+    if has_usb_serial_text:
+        score += 5
+    if has_known_usb_vid:
+        score += 4
+    if device.startswith("/dev/cu."):
+        score += 1
+    return score
+
+
+def _port_device(port_info: object) -> str:
+    value = getattr(port_info, "device", None)
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _port_search_text(port_info: object) -> str:
+    values = [
+        _port_device(port_info),
+        getattr(port_info, "description", ""),
+        getattr(port_info, "manufacturer", ""),
+        getattr(port_info, "product", ""),
+        getattr(port_info, "hwid", ""),
+    ]
+    return " ".join(str(value) for value in values if value).lower()
+
+
+def _device_preference(device: str) -> int:
+    if device.startswith("/dev/cu."):
+        return 0
+    return 1
+
+
 class Publisher:
     def start(self) -> None:
         raise NotImplementedError
@@ -36,6 +136,9 @@ class Publisher:
 
     def publish(self, payload: Dict[str, object]) -> None:
         raise NotImplementedError
+
+    def diagnostics(self) -> Dict[str, object]:
+        return {}
 
 
 class DryRunPublisher(Publisher):
@@ -159,9 +262,10 @@ def make_publisher(
     serial_port: Optional[str],
     device_prefixes: Iterable[str],
     scan_timeout: float,
+    serial: bool = False,
 ) -> Publisher:
-    if serial_port:
-        return SerialPublisher(serial_port)
+    if serial or serial_port:
+        return SerialPublisher(port=serial_port)
     prefixes = tuple(device_prefixes)
     if dry_run:
         return DryRunPublisher()
@@ -169,31 +273,34 @@ def make_publisher(
 
 
 class SerialPublisher(Publisher):
-    def __init__(self, port: str, baudrate: int = 115200) -> None:
-        self.port = port
+    def __init__(
+        self,
+        port: Optional[str] = None,
+        baudrate: int = 115200,
+        reconnect_delay: float = 2.0,
+        settle_delay: float = 0.2,
+        serial_module: Optional[object] = None,
+        ports_provider: Optional[Callable[[], Sequence[object]]] = None,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self.requested_port = port
         self.baudrate = baudrate
+        self.reconnect_delay = reconnect_delay
+        self.settle_delay = settle_delay
+        self._serial_module = serial_module
+        self._ports_provider = ports_provider
+        self._clock = clock
         self._serial = None
+        self._selected_port: Optional[str] = port
+        self._connection_state = "disconnected"
+        self._last_publish_time: Optional[str] = None
+        self._last_serial_error: Optional[str] = None
+        self._next_connect_attempt = 0.0
         self._lock = threading.Lock()
 
     def start(self) -> None:
-        try:
-            import serial
-        except ImportError:
-            log("[codex-buddy] pyserial is not installed. Install with: python3 -m pip install pyserial")
-            return
-
-        with self._lock:
-            if self._serial is not None:
-                return
-            try:
-                self._serial = serial.Serial(self.port, self.baudrate, timeout=0.1, write_timeout=1)
-                self._serial.dtr = False
-                self._serial.rts = False
-                time.sleep(0.2)
-                log(f"[codex-buddy] serial connected to {self.port} @ {self.baudrate}")
-            except Exception as exc:
-                self._serial = None
-                log(f"[codex-buddy] serial open failed: {exc}")
+        mode = self.requested_port or "auto-discovery"
+        log(f"[codex-buddy] serial publisher active ({mode})")
 
     def stop(self) -> None:
         with self._lock:
@@ -202,20 +309,101 @@ class SerialPublisher(Publisher):
                     self._serial.close()
                 finally:
                     self._serial = None
+            self._connection_state = "disconnected"
 
     def publish(self, payload: Dict[str, object]) -> None:
         with self._lock:
-            if self._serial is None:
-                log("[codex-buddy] serial not connected; heartbeat dropped")
+            if not self._ensure_connected_locked():
                 return
             data = json.dumps(payload, separators=(",", ":")).encode("utf-8") + b"\n"
             try:
                 self._serial.write(data)
                 self._serial.flush()
+                self._connection_state = "connected"
+                self._last_publish_time = datetime.now().isoformat(timespec="seconds")
+                self._last_serial_error = None
                 log("[codex-buddy] sent heartbeat to serial")
             except Exception as exc:
-                log(f"[codex-buddy] serial write failed: {exc}")
+                self._record_disconnect_locked(f"serial write failed: {exc}")
                 try:
                     self._serial.close()
                 finally:
                     self._serial = None
+
+    def diagnostics(self) -> Dict[str, object]:
+        with self._lock:
+            return {
+                "transport": "serial",
+                "requested_port": self.requested_port,
+                "selected_port": self._selected_port,
+                "connection_state": self._connection_state,
+                "last_publish_time": self._last_publish_time,
+                "last_serial_error": self._last_serial_error,
+            }
+
+    def _ensure_connected_locked(self) -> bool:
+        if self._serial is not None:
+            return True
+        if self._clock() < self._next_connect_attempt:
+            return False
+        return self._connect_locked()
+
+    def _connect_locked(self) -> bool:
+        serial_module = self._load_serial_module_locked()
+        if serial_module is None:
+            return False
+
+        port = self.requested_port or self._discover_port_locked()
+        if port is None:
+            self._record_disconnect_locked("no likely M5/ESP32 USB serial port found")
+            return False
+
+        self._selected_port = port
+        try:
+            self._serial = serial_module.Serial(port, self.baudrate, timeout=0.1, write_timeout=1)
+            self._serial.dtr = False
+            self._serial.rts = False
+            if self.settle_delay > 0:
+                time.sleep(self.settle_delay)
+            self._connection_state = "connected"
+            self._last_serial_error = None
+            log(f"[codex-buddy] serial connected to {port} @ {self.baudrate}")
+            return True
+        except Exception as exc:
+            self._serial = None
+            self._record_disconnect_locked(f"serial open failed for {port}: {exc}")
+            return False
+
+    def _load_serial_module_locked(self) -> Optional[object]:
+        if self._serial_module is not None:
+            return self._serial_module
+        try:
+            import serial
+        except ImportError:
+            self._record_disconnect_locked("pyserial is not installed. Install with: python3 -m pip install -e .")
+            return None
+        self._serial_module = serial
+        return self._serial_module
+
+    def _discover_port_locked(self) -> Optional[str]:
+        try:
+            if self._ports_provider is not None:
+                ports = list(self._ports_provider())
+            else:
+                from serial.tools import list_ports
+
+                ports = list(list_ports.comports())
+        except Exception as exc:
+            self._record_disconnect_locked(f"serial port discovery failed: {exc}")
+            return None
+        port = choose_serial_port(ports)
+        self._selected_port = port
+        return port
+
+    def _record_disconnect_locked(self, message: str) -> None:
+        self._connection_state = "disconnected"
+        if self.requested_port is None:
+            self._selected_port = None
+        self._last_serial_error = message
+        self._next_connect_attempt = self._clock() + self.reconnect_delay
+        log(f"[codex-buddy] {message}")

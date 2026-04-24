@@ -24,8 +24,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     bridge.add_argument("--scan-timeout", type=float, default=5.0, help="BLE scan timeout in seconds")
     bridge.add_argument(
+        "--serial",
+        action="store_true",
+        help="use USB serial with automatic M5/ESP32 port discovery",
+    )
+    bridge.add_argument(
         "--serial-port",
-        help="USB serial device path; bypasses BLE and writes heartbeat JSON over serial",
+        help="USB serial device path; implies --serial and bypasses BLE",
     )
     bridge.add_argument(
         "--dry-run",
@@ -78,6 +83,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             serial_port=args.serial_port,
             device_prefixes=prefixes,
             scan_timeout=args.scan_timeout,
+            serial=args.serial,
         )
         daemon = BuddyDaemon(publisher)
         serve(daemon, args.host, args.port)
