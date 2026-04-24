@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codex-buddy-bridge"
+version = "0.1.0"
+description = "Repo-local Codex status bridge for Claude/Codex hardware buddies"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+  { name = "Dylan McCavitt" }
+]
+dependencies = []
+
+[project.optional-dependencies]
+ble = ["bleak>=0.22"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+codex-buddy = "codex_buddy_bridge.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
