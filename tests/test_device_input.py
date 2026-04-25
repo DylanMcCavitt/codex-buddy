@@ -1,6 +1,7 @@
 import unittest
 
 from codex_buddy_bridge.device_input import DeviceInputMonitor
+from codex_buddy_bridge.policy import ApprovalPrompt, HardwareApprovalPolicy, PromptKind
 
 
 class DeviceInputMonitorTests(unittest.TestCase):
@@ -44,6 +45,26 @@ class DeviceInputMonitorTests(unittest.TestCase):
         diagnostics = monitor.diagnostics()
         self.assertEqual(diagnostics["last_command_type"], "ack")
         self.assertEqual(diagnostics["command_counts"], {"permission": 1, "ack": 1})
+
+    def test_permission_input_records_sanitized_policy_decision(self):
+        prompt = ApprovalPrompt(
+            prompt_id="request-secret",
+            kind=PromptKind.COMMAND,
+            command="rm -rf /Users/dylanmccavitt/private",
+        )
+        monitor = DeviceInputMonitor(
+            policy=HardwareApprovalPolicy(),
+            active_prompt=lambda: prompt,
+        )
+
+        monitor.feed_bytes(b'{"cmd":"permission","id":"request-secret","decision":"accept"}\n')
+
+        diagnostics = monitor.diagnostics()
+        decision = diagnostics["last_policy_decision"]
+        self.assertEqual(decision["outcome"], "reject_hardware_approve")
+        self.assertEqual(decision["reason"], "hardware_approve_disabled")
+        self.assertNotIn("request-secret", str(diagnostics))
+        self.assertNotIn("/Users/dylanmccavitt/private", str(diagnostics))
 
 
 if __name__ == "__main__":

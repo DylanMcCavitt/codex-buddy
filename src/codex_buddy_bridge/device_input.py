@@ -5,6 +5,8 @@ import threading
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
+from .policy import ApprovalPrompt, HardwareApprovalPolicy, PolicyDecision
+
 
 MAX_DEVICE_INPUT_BYTES = 4096
 KNOWN_DEVICE_COMMANDS = {"permission", "status", "ack"}
@@ -15,13 +17,18 @@ class DeviceInputMonitor:
         self,
         max_line_bytes: int = MAX_DEVICE_INPUT_BYTES,
         logger: Optional[Callable[[str], None]] = None,
+        policy: Optional[HardwareApprovalPolicy] = None,
+        active_prompt: Optional[Callable[[], Optional[ApprovalPrompt]]] = None,
     ) -> None:
         self.max_line_bytes = max_line_bytes
         self._logger = logger
+        self._policy = policy
+        self._active_prompt = active_prompt
         self._buffer = bytearray()
         self._lock = threading.Lock()
         self._last_command_type: Optional[str] = None
         self._last_received_time: Optional[str] = None
+        self._last_policy_decision: Optional[Dict[str, Optional[str]]] = None
         self._command_counts: Dict[str, int] = {}
         self._parse_errors = 0
         self._oversized_inputs = 0
@@ -70,6 +77,9 @@ class DeviceInputMonitor:
             return {
                 "last_command_type": self._last_command_type,
                 "last_received_time": self._last_received_time,
+                "last_policy_decision": (
+                    dict(self._last_policy_decision) if self._last_policy_decision else None
+                ),
                 "command_counts": dict(self._command_counts),
                 "parse_errors": self._parse_errors,
                 "oversized_inputs": self._oversized_inputs,
@@ -104,7 +114,22 @@ class DeviceInputMonitor:
         self._last_command_type = command_type
         self._last_received_time = datetime.now().isoformat(timespec="seconds")
         self._command_counts[command_type] = self._command_counts.get(command_type, 0) + 1
+        if command_type == "permission":
+            self._record_policy_decision_locked(payload)
         self._log(f"[codex-buddy] received device input cmd={command_type}")
+
+    def _record_policy_decision_locked(self, payload: Dict[str, Any]) -> None:
+        if self._policy is None:
+            return
+        prompt_id = payload.get("id")
+        decision = payload.get("decision")
+        active_prompt = self._active_prompt() if self._active_prompt is not None else None
+        result: PolicyDecision = self._policy.evaluate(
+            prompt_id=prompt_id if isinstance(prompt_id, str) else None,
+            decision=decision if isinstance(decision, str) else None,
+            active_prompt=active_prompt,
+        )
+        self._last_policy_decision = result.log_entry.to_dict()
 
     def _log(self, message: str) -> None:
         if self._logger is not None:
