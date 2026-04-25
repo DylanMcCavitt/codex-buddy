@@ -1,14 +1,17 @@
 # Codex Buddy Handoff
 
 Date: 2026-04-25
-Current issue: AGE-279 complete on branch
-Branch: `feat/age-279-local-safety-policy`
-PR: not opened
+Current issue: AGE-279 complete
+Branch: `main`
+PR: https://github.com/DylanMcCavitt/codex-buddy/pull/7 (merged)
 
 ## Status
 
-AGE-279 adds the local safety policy that must exist before hardware decisions
-can be routed back into Codex.
+AGE-279 is merged to `main` at
+`68c4a905e2a21dc19632415b5563286b04b0d82d`.
+
+The issue added the local safety policy that must exist before hardware
+decisions can be routed back into Codex.
 
 - Added `HardwareApprovalPolicy` with explicit outcomes for allow approve,
   allow deny, reject hardware approve, and ignore stale/unknown prompt.
@@ -26,10 +29,10 @@ can be routed back into Codex.
 
 ## Next
 
-- Open/review PR for AGE-279.
-- After AGE-279 merges, AGE-280 should route device deny and policy-approved
-  approvals through Codex hooks.
-- Do not route device decisions into Codex before AGE-279 is merged.
+- Next issue: AGE-280 should route device deny and policy-approved approvals
+  through Codex hooks.
+- Use the AGE-279 policy layer as the gate before answering any Codex hook
+  permission request from hardware.
 
 ## Risks
 
