@@ -1,14 +1,17 @@
 # Codex Buddy Handoff
 
 Date: 2026-04-25
-Current issue: AGE-278 implemented locally
-Branch: `feat/age-278-device-input-diagnostics`
-PR: not opened yet
+Current issue: AGE-278 complete
+Branch: `main`
+PR: https://github.com/DylanMcCavitt/codex-buddy/pull/6 (merged)
 
 ## Status
 
-AGE-278 adds device-originated input capture without routing decisions back to
-Codex.
+AGE-278 is merged to `main` at
+`ad22c04260f22986d9c7ec4e878f46ce2d7dd074`.
+
+The issue added device-originated input capture without routing decisions back
+to Codex.
 
 - Added a shared sanitized device-input monitor for newline-delimited JSON.
 - Serial mode now starts a reader for the connected USB serial device and keeps
@@ -31,7 +34,8 @@ Codex.
 
 ## Next
 
-- Review the AGE-278 diff and open a PR if acceptable.
+- Next likely issue: AGE-280 `Route device deny and policy-approved approvals
+  through Codex hooks`.
 - Do not route device decisions into Codex until AGE-280 or a later approval
   issue owns that behavior.
 
