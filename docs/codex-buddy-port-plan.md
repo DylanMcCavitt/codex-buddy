@@ -231,12 +231,14 @@ Initial allow-list candidates:
 The bridge should log each hardware decision locally with:
 
 - timestamp
-- Codex thread/turn id
-- request id
+- prompt id hash or safe id
 - prompt kind
 - decision
-- truncated command or file summary
-- whether the policy allowed hardware approval
+- allow/reject outcome
+- reason
+
+The decision log must not include raw prompt text, full command strings, file
+paths, transcript text, or approval details.
 
 ## Implementation Roadmap
 

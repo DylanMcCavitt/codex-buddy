@@ -1,74 +1,56 @@
 # Codex Buddy Handoff
 
 Date: 2026-04-25
-Current issue: AGE-278 complete
-Branch: `main`
-PR: https://github.com/DylanMcCavitt/codex-buddy/pull/6 (merged)
+Current issue: AGE-279 complete on branch
+Branch: `feat/age-279-local-safety-policy`
+PR: not opened
 
 ## Status
 
-AGE-278 is merged to `main` at
-`ad22c04260f22986d9c7ec4e878f46ce2d7dd074`.
+AGE-279 adds the local safety policy that must exist before hardware decisions
+can be routed back into Codex.
 
-The issue added device-originated input capture without routing decisions back
-to Codex.
-
-- Added a shared sanitized device-input monitor for newline-delimited JSON.
-- Serial mode now starts a reader for the connected USB serial device and keeps
-  heartbeat publishing behavior unchanged.
-- BLE mode now subscribes to Nordic UART TX notifications and feeds the same
-  parser.
-- `permission`, `status`, `ack`, and unknown command inputs are counted without
-  storing prompt details.
-- Malformed and oversized input is ignored safely and counted.
-- `/healthz` now reports device-input diagnostics under publisher diagnostics
-  for serial and BLE transports.
-
-## Prior Context
-
-- AGE-276 is merged to `main` at
-  `daee79f8a9692315463b9df55656dd119b18915a`.
-- AGE-272 added the workflow playbook docs and issue-packet conventions.
-- AGE-275 added the opt-in LaunchAgent flow and remains the operational basis
-  for background serial bridge installs.
+- Added `HardwareApprovalPolicy` with explicit outcomes for allow approve,
+  allow deny, reject hardware approve, and ignore stale/unknown prompt.
+- Deny/decline/cancel is allowed for active prompts by default.
+- Approve/accept/once is rejected by default unless hardware approve is
+  explicitly enabled.
+- Added conservative command allow-list support, including environment config
+  for future integration:
+  - `CODEX_BUDDY_HARDWARE_APPROVE=1`
+  - `CODEX_BUDDY_APPROVE_COMMANDS="python3 -m unittest,make test"`
+- Added sanitized decision-log entries with timestamp, prompt id hash, prompt
+  kind, normalized decision, outcome, and reason only.
+- Device permission input can optionally evaluate through the policy and expose
+  only the latest sanitized policy decision in diagnostics.
 
 ## Next
 
-- Next likely issue: AGE-280 `Route device deny and policy-approved approvals
-  through Codex hooks`.
-- Do not route device decisions into Codex until AGE-280 or a later approval
-  issue owns that behavior.
+- Open/review PR for AGE-279.
+- After AGE-279 merges, AGE-280 should route device deny and policy-approved
+  approvals through Codex hooks.
+- Do not route device decisions into Codex before AGE-279 is merged.
 
 ## Risks
 
-- Hardware approval/deny remains out of scope and disabled.
+- Hardware approval/deny routing remains out of scope and disabled.
+- Policy has fixture coverage only; manual Codex high-risk prompt validation
+  belongs with AGE-280 when routing exists.
 - BLE transport remains less validated than USB serial.
 
 ## Files
 
+- `src/codex_buddy_bridge/policy.py`
 - `src/codex_buddy_bridge/device_input.py`
-- `src/codex_buddy_bridge/ble.py`
+- `tests/test_policy.py`
 - `tests/test_device_input.py`
-- `tests/test_serial_bridge.py`
-- `tests/test_ble_discovery.py`
 - `README.md`
+- `docs/codex-buddy-port-plan.md`
+- `docs/workflow-playbook/issues/AGE-279-local-safety-policy.md`
 - `docs/handoff-next-worker.md`
 
 ## Checks
 
-- `python3 -m py_compile src/codex_buddy_bridge/device_input.py src/codex_buddy_bridge/ble.py tests/test_device_input.py tests/test_serial_bridge.py tests/test_ble_discovery.py` passed.
-- `PYTHONPATH=src python3 -m unittest discover -s tests -v` passed: 36 tests.
-- Manual serial button-input verification passed on `/dev/cu.usbserial-7552A41038`:
-  after a forced `PermissionRequest`, pressing the device button updated
-  `/healthz` with `device_input.last_command_type == "permission"` and
-  `command_counts.permission == 1`.
-
-## Commands
-
-```bash
-make bridge-serial
-SERIAL_PORT=/dev/cu.usbserial-7552A41038 make bridge-serial
-make bridge-dry-run
-make test
-curl -fsS http://127.0.0.1:47833/healthz
-```
+- `PYTHONPATH=src python3 -m unittest discover -s tests -v` passed: 45 tests.
+- `python3 -m py_compile src/codex_buddy_bridge/*.py .codex/hooks/codex_buddy_hook.py tests/*.py` passed.
+- `git diff --check` passed.

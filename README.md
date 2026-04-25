@@ -90,6 +90,32 @@ Codex hooks are repo-local in `.codex/hooks.json` for development. The hook
 script exits successfully if the bridge is not running, so normal Codex work is
 not blocked.
 
+## Hardware Approval Policy
+
+The bridge includes a local safety policy for hardware-originated approval
+decisions. It is intentionally a policy gate only: this issue does not route
+device decisions back into Codex.
+
+Default behavior:
+
+- deny/decline/cancel is allowed for the active prompt
+- approve/accept/once is rejected unless hardware approve is explicitly enabled
+- high-risk commands and non-command prompts stay in the Codex UI
+- decision logs are sanitized and include only timestamp, prompt id hash, prompt
+  kind, normalized decision, outcome, and reason
+
+Hardware approve can be enabled for policy tests or future integration by
+setting:
+
+```bash
+CODEX_BUDDY_HARDWARE_APPROVE=1
+CODEX_BUDDY_APPROVE_COMMANDS="python3 -m unittest,make test"
+```
+
+The built-in allow-list is conservative and read-only. Configured commands are
+matched as command prefixes. Raw prompt text, full command strings, file paths,
+and transcript text are not written to the decision log.
+
 ## User-level Hooks
 
 User-level hooks are opt-in. Installing them writes Codex Buddy managed entries
@@ -218,6 +244,9 @@ commands, file paths, or approval details over BLE. `PermissionRequest` only
 sends a display-only prompt that tells you to approve in the Codex app.
 Unknown or malformed hook event names are recorded as `unknown` in diagnostics
 instead of being reflected raw.
+
+Hardware-originated approval decisions are evaluated by the local safety policy
+but are not routed back into Codex until a later issue owns that behavior.
 
 The user-level hook installer changes only `~/.codex/hooks.json`, and only when
 run without `--dry-run`.
