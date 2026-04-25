@@ -1,14 +1,17 @@
 # Codex Buddy Handoff
 
 Date: 2026-04-25
-Current issue: AGE-276 in progress
-Branch: `feat/age-276-firmware-codex-identity`
-PR: https://github.com/DylanMcCavitt/codex-buddy/pull/5
+Current issue: AGE-276 complete
+Branch: `main`
+PR: https://github.com/DylanMcCavitt/codex-buddy/pull/5 (merged)
 
 ## Status
 
-AGE-276 updates firmware identity from upstream Claude Buddy branding to Codex
-Buddy while preserving protocol compatibility and upstream attribution.
+AGE-276 is merged to `main` at
+`daee79f8a9692315463b9df55656dd119b18915a`.
+
+The issue updated firmware identity from upstream Claude Buddy branding to
+Codex Buddy while preserving protocol compatibility and upstream attribution.
 
 - BLE advertisement changed from `Claude-XXXX` to `Codex-XXXX`.
 - Normal on-device copy now uses Codex-facing strings:
@@ -17,7 +20,7 @@ Buddy while preserving protocol compatibility and upstream attribution.
 - Added firmware notes at `firmware/claude-desktop-buddy/CODEX_BUDDY.md`.
 - Bridge BLE discovery still accepts both `Codex-*` and `Claude-*`; covered by
   a focused test.
-- AGE-272 workflow docs are now on `main`; this branch was rebased over them.
+- AGE-272 workflow docs are on `main`.
 
 ## Prior Context
 
@@ -27,10 +30,11 @@ Buddy while preserving protocol compatibility and upstream attribution.
 
 ## Next
 
-- Review PR #5.
-- Before merge, confirm BLE advertises as `Codex-*` if that was not already
-  checked during review.
-- If merged, update the canonical checkout handoff on `main` and close AGE-276.
+- Next ready Linear candidate: AGE-277 `Add Codex decision aliases and
+  prompt-kind display to firmware`.
+- Before starting AGE-277, read this handoff and the live Linear issue.
+- If hardware is available, confirm the AGE-276 firmware advertises as
+  `Codex-*` before layering additional firmware changes.
 
 ## Risks
 
