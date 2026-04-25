@@ -1,4 +1,5 @@
 import unittest
+import time
 
 from codex_buddy_bridge.ble import SerialPublisher, choose_serial_port, likely_serial_ports
 
@@ -22,10 +23,11 @@ class FakePort:
 
 
 class FakeSerialDevice:
-    def __init__(self, fail_writes=False):
+    def __init__(self, fail_writes=False, read_lines=None):
         self.fail_writes = fail_writes
         self.closed = False
         self.writes = []
+        self.read_lines = list(read_lines or [])
         self.dtr = True
         self.rts = True
 
@@ -37,18 +39,26 @@ class FakeSerialDevice:
     def flush(self):
         pass
 
+    def readline(self):
+        if self.read_lines:
+            return self.read_lines.pop(0)
+        time.sleep(0.01)
+        return b""
+
     def close(self):
         self.closed = True
 
 
 class FakeSerialModule:
-    def __init__(self, fail_writes=None):
+    def __init__(self, fail_writes=None, read_lines=None):
         self.fail_writes = list(fail_writes or [])
+        self.read_lines = list(read_lines or [])
         self.instances = []
 
     def Serial(self, port, baudrate, timeout, write_timeout):
         fail_writes = self.fail_writes.pop(0) if self.fail_writes else False
-        device = FakeSerialDevice(fail_writes=fail_writes)
+        read_lines = self.read_lines.pop(0) if self.read_lines else None
+        device = FakeSerialDevice(fail_writes=fail_writes, read_lines=read_lines)
         self.instances.append(
             {
                 "port": port,
@@ -196,6 +206,33 @@ class SerialPublisherTests(unittest.TestCase):
         self.assertEqual(diagnostics["connection_state"], "disconnected")
         self.assertIsNone(diagnostics["selected_port"])
         self.assertEqual(diagnostics["last_serial_error"], "no likely M5/ESP32 USB serial port found")
+
+    def test_reads_newline_delimited_device_input_after_connecting(self):
+        serial_module = FakeSerialModule(
+            read_lines=[[b'{"cmd":"permission","decision":"decline","prompt":"secret"}\n']]
+        )
+        publisher = SerialPublisher(
+            port="/dev/cu.usbserial-7552A41038",
+            serial_module=serial_module,
+            reconnect_delay=0,
+            settle_delay=0,
+        )
+
+        try:
+            publisher.publish({"msg": "waiting"})
+            deadline = time.monotonic() + 1
+            diagnostics = publisher.diagnostics()
+            while diagnostics["device_input"]["last_command_type"] != "permission":
+                if time.monotonic() > deadline:
+                    break
+                time.sleep(0.01)
+                diagnostics = publisher.diagnostics()
+        finally:
+            publisher.stop()
+
+        self.assertEqual(diagnostics["device_input"]["last_command_type"], "permission")
+        self.assertEqual(diagnostics["device_input"]["command_counts"]["permission"], 1)
+        self.assertNotIn("secret", str(diagnostics))
 
 
 if __name__ == "__main__":

@@ -80,8 +80,11 @@ curl -fsS http://127.0.0.1:47833/healthz
 
 The `diagnostics` block reports the last sanitized hook event name, event counts,
 and publisher diagnostics such as selected serial port, connection state, last
-publish time, and last serial error. These diagnostics are local to the HTTP
-health check; they are not added to the device heartbeat payload.
+publish time, and last serial error. Serial and BLE publisher diagnostics also
+include sanitized device-input counters for newline-delimited JSON sent back by
+the buddy, including the last command type, command counts, parse errors, and
+oversized input drops. These diagnostics are local to the HTTP health check;
+they are not added to the device heartbeat payload.
 
 Codex hooks are repo-local in `.codex/hooks.json` for development. The hook
 script exits successfully if the bridge is not running, so normal Codex work is

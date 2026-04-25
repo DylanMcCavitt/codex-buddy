@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence
 
+from .device_input import DeviceInputMonitor
+
 
 NUS_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 NUS_RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
@@ -168,6 +170,10 @@ class BlePublisher(Publisher):
         self.reconnect_delay = reconnect_delay
         self._queue: "queue.Queue[None]" = queue.Queue()
         self._latest: Optional[Dict[str, object]] = None
+        self._device_input = DeviceInputMonitor(logger=log)
+        self._connection_state = "disconnected"
+        self._last_publish_time: Optional[str] = None
+        self._last_ble_error: Optional[str] = None
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -189,6 +195,16 @@ class BlePublisher(Publisher):
             self._latest = dict(payload)
         self._queue.put(None)
 
+    def diagnostics(self) -> Dict[str, object]:
+        with self._lock:
+            return {
+                "transport": "ble",
+                "connection_state": self._connection_state,
+                "last_publish_time": self._last_publish_time,
+                "last_ble_error": self._last_ble_error,
+                "device_input": self._device_input.diagnostics(),
+            }
+
     def _thread_main(self) -> None:
         try:
             asyncio.run(self._run())
@@ -203,23 +219,39 @@ class BlePublisher(Publisher):
             return
 
         while not self._stop.is_set():
+            with self._lock:
+                self._connection_state = "scanning"
             device = await self._find_device(BleakScanner)
             if device is None:
+                with self._lock:
+                    self._connection_state = "disconnected"
                 await self._sleep(self.reconnect_delay)
                 continue
 
             name = getattr(device, "name", None) or getattr(device, "address", "unknown")
             log(f"[codex-buddy] connecting to {name}")
             try:
+                with self._lock:
+                    self._connection_state = "connecting"
                 async with BleakClient(device) as client:
+                    with self._lock:
+                        self._connection_state = "connected"
+                        self._last_ble_error = None
                     log(f"[codex-buddy] connected to {name}")
+                    await self._start_notifications(client)
                     await self._send_latest(client)
                     while client.is_connected and not self._stop.is_set():
                         await asyncio.to_thread(self._queue.get)
                         await self._send_latest(client)
             except Exception as exc:
+                with self._lock:
+                    self._connection_state = "disconnected"
+                    self._last_ble_error = str(exc)
                 log(f"[codex-buddy] BLE connection failed: {exc}")
                 await self._sleep(self.reconnect_delay)
+            else:
+                with self._lock:
+                    self._connection_state = "disconnected"
 
     async def _find_device(self, scanner_cls: object):
         log(
@@ -253,7 +285,31 @@ class BlePublisher(Publisher):
             return
         data = json.dumps(payload, separators=(",", ":")).encode("utf-8") + b"\n"
         await client.write_gatt_char(NUS_RX_UUID, data, response=False)
+        with self._lock:
+            self._last_publish_time = datetime.now().isoformat(timespec="seconds")
+            self._last_ble_error = None
         log("[codex-buddy] sent heartbeat to BLE")
+
+    async def _start_notifications(self, client: object) -> None:
+        start_notify = getattr(client, "start_notify", None)
+        if not callable(start_notify):
+            return
+        try:
+            await start_notify(NUS_TX_UUID, self._handle_tx_notification)
+            log("[codex-buddy] subscribed to BLE device input")
+        except Exception as exc:
+            log(f"[codex-buddy] BLE input subscription failed: {exc}")
+
+    def _handle_tx_notification(self, sender: object, data: object) -> None:
+        if isinstance(data, bytearray):
+            raw = bytes(data)
+        elif isinstance(data, bytes):
+            raw = data
+        elif isinstance(data, memoryview):
+            raw = data.tobytes()
+        else:
+            return
+        self._device_input.feed_bytes(raw)
 
     async def _sleep(self, seconds: float) -> None:
         deadline = time.monotonic() + seconds
@@ -300,13 +356,20 @@ class SerialPublisher(Publisher):
         self._last_publish_time: Optional[str] = None
         self._last_serial_error: Optional[str] = None
         self._next_connect_attempt = 0.0
+        self._reader_stop = threading.Event()
+        self._reader_thread: Optional[threading.Thread] = None
+        self._reader_serial = None
+        self._io_lock = threading.Lock()
+        self._device_input = DeviceInputMonitor(logger=log)
         self._lock = threading.Lock()
 
     def start(self) -> None:
         mode = self.requested_port or "auto-discovery"
+        self._reader_stop.clear()
         log(f"[codex-buddy] serial publisher active ({mode})")
 
     def stop(self) -> None:
+        self._reader_stop.set()
         with self._lock:
             if self._serial is not None:
                 try:
@@ -314,6 +377,9 @@ class SerialPublisher(Publisher):
                 finally:
                     self._serial = None
             self._connection_state = "disconnected"
+        if self._reader_thread:
+            self._reader_thread.join(timeout=1)
+            self._reader_thread = None
 
     def publish(self, payload: Dict[str, object]) -> None:
         with self._lock:
@@ -321,8 +387,9 @@ class SerialPublisher(Publisher):
                 return
             data = json.dumps(payload, separators=(",", ":")).encode("utf-8") + b"\n"
             try:
-                self._serial.write(data)
-                self._serial.flush()
+                with self._io_lock:
+                    self._serial.write(data)
+                    self._serial.flush()
                 self._connection_state = "connected"
                 self._last_publish_time = datetime.now().isoformat(timespec="seconds")
                 self._last_serial_error = None
@@ -343,6 +410,7 @@ class SerialPublisher(Publisher):
                 "connection_state": self._connection_state,
                 "last_publish_time": self._last_publish_time,
                 "last_serial_error": self._last_serial_error,
+                "device_input": self._device_input.diagnostics(),
             }
 
     def _ensure_connected_locked(self) -> bool:
@@ -371,6 +439,7 @@ class SerialPublisher(Publisher):
                 time.sleep(self.settle_delay)
             self._connection_state = "connected"
             self._last_serial_error = None
+            self._start_reader_locked(self._serial)
             log(f"[codex-buddy] serial connected to {port} @ {self.baudrate}")
             return True
         except Exception as exc:
@@ -411,3 +480,38 @@ class SerialPublisher(Publisher):
         self._last_serial_error = message
         self._next_connect_attempt = self._clock() + self.reconnect_delay
         log(f"[codex-buddy] {message}")
+
+    def _start_reader_locked(self, serial_device: object) -> None:
+        if self._reader_thread and self._reader_thread.is_alive() and self._reader_serial is serial_device:
+            return
+        self._reader_serial = serial_device
+        thread = threading.Thread(
+            target=self._reader_loop,
+            args=(serial_device,),
+            name="codex-buddy-serial-reader",
+            daemon=True,
+        )
+        self._reader_thread = thread
+        thread.start()
+
+    def _reader_loop(self, serial_device: object) -> None:
+        while not self._reader_stop.is_set():
+            with self._lock:
+                if self._serial is not serial_device:
+                    return
+            try:
+                with self._io_lock:
+                    line = serial_device.readline()
+            except AttributeError:
+                return
+            except Exception as exc:
+                with self._lock:
+                    if self._serial is serial_device:
+                        self._record_disconnect_locked(f"serial read failed: {exc}")
+                        try:
+                            serial_device.close()
+                        finally:
+                            self._serial = None
+                return
+            if line:
+                self._device_input.feed_line(bytes(line))
