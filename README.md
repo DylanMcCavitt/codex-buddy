@@ -8,8 +8,10 @@ adds a small Python bridge. Repo-local Codex hooks post lifecycle events to the
 bridge, and the bridge sends compatible heartbeat JSON to the device over USB
 serial or BLE.
 
-This first slice is display-only. The device can show idle, working, waiting
-for approval, and completed states, but approvals still happen in the Codex UI.
+The device can show idle, working, waiting for approval, and completed states.
+For supported Codex `PermissionRequest` hooks, the buddy can deny from hardware
+and can approve only when the local hardware approval policy explicitly allows
+the request.
 
 ## Layout
 
@@ -93,8 +95,8 @@ not blocked.
 ## Hardware Approval Policy
 
 The bridge includes a local safety policy for hardware-originated approval
-decisions. It is intentionally a policy gate only: this issue does not route
-device decisions back into Codex.
+decisions. The policy gates every hardware decision before the bridge returns a
+Codex hook response.
 
 Default behavior:
 
@@ -115,6 +117,61 @@ CODEX_BUDDY_APPROVE_COMMANDS="python3 -m unittest,make test"
 The built-in allow-list is conservative and read-only. Configured commands are
 matched as command prefixes. Raw prompt text, full command strings, file paths,
 and transcript text are not written to the decision log.
+
+## Hardware Permission Decisions
+
+Codex Buddy returns hook decisions only for Codex `PermissionRequest` events.
+The current hook matcher is `Bash`; Codex documentation also supports
+`PermissionRequest` matchers for `apply_patch` and MCP tool names, but this repo
+only installs the Bash matcher today.
+
+Supported behavior:
+
+- hardware deny/decline/cancel returns Codex `behavior: deny` for the matching
+  active permission request
+- hardware approve/accept/once returns Codex `behavior: allow` only when
+  `CODEX_BUDDY_HARDWARE_APPROVE=1` is set and the command is allow-listed by the
+  local policy
+- policy-rejected hardware approve returns no hook decision, so the normal Codex
+  approval UI remains the source of truth
+- stale ids, unknown decisions, malformed input, and decisions after the active
+  hook wait expires are ignored
+
+The device receives only a sanitized prompt id, a coarse tool label, and a short
+hint. Raw commands, prompt text, file paths, transcript paths, and approval
+reasons stay local to the bridge for policy evaluation.
+
+Manual hardware test path:
+
+1. Start the bridge with USB serial:
+
+   ```bash
+   make bridge-serial
+   ```
+
+2. In another Codex session with hooks enabled, trigger a harmless Bash approval
+   such as an escalated read-only command. Press the buddy deny button. Codex
+   should receive a denied `PermissionRequest`.
+3. Restart the bridge with hardware approve enabled for a safe command:
+
+   ```bash
+   CODEX_BUDDY_HARDWARE_APPROVE=1 CODEX_BUDDY_APPROVE_COMMANDS="git status" make bridge-serial
+   ```
+
+4. Trigger an approval for `git status --short` and press the buddy approve
+   button. Codex should receive an allowed `PermissionRequest`.
+5. Trigger a high-risk approval such as a destructive shell command and press
+   the buddy approve button. The buddy should show `approve in Codex`, and Codex
+   should still require the in-app approval UI.
+6. Check local diagnostics:
+
+   ```bash
+   curl -fsS http://127.0.0.1:47833/healthz
+   ```
+
+   Confirm `diagnostics.last_permission_result` and
+   `diagnostics.publisher.device_input.last_policy_decision` show sanitized
+   outcomes without raw command or prompt text.
 
 ## User-level Hooks
 
@@ -239,14 +296,16 @@ PlatformIO is not vendored in this repo.
 
 ## Safety
 
-The MVP intentionally does not forward raw prompts, transcript snippets, full
-commands, file paths, or approval details over BLE. `PermissionRequest` only
-sends a display-only prompt that tells you to approve in the Codex app.
+The bridge intentionally does not forward raw prompts, transcript snippets, full
+commands, file paths, or approval details over BLE. `PermissionRequest` sends
+only a sanitized id, coarse tool label, and short button hint.
 Unknown or malformed hook event names are recorded as `unknown` in diagnostics
 instead of being reflected raw.
 
 Hardware-originated approval decisions are evaluated by the local safety policy
-but are not routed back into Codex until a later issue owns that behavior.
+before any Codex hook decision is returned. If the bridge is stopped or no
+hardware decision arrives before the hook wait expires, Codex falls back to the
+normal approval UI.
 
 The user-level hook installer changes only `~/.codex/hooks.json`, and only when
 run without `--dry-run`.

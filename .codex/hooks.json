@@ -40,7 +40,8 @@
           {
             "type": "command",
             "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/codex_buddy_hook.py\"",
-            "statusMessage": "Updating Codex Buddy"
+            "statusMessage": "Updating Codex Buddy",
+            "timeout": 15
           }
         ]
       }

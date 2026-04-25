@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence
 
 from .device_input import DeviceInputMonitor
+from .policy import ApprovalPrompt, HardwareApprovalPolicy, PolicyDecision
 
 
 NUS_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
@@ -146,6 +147,15 @@ class Publisher:
     def diagnostics(self) -> Dict[str, object]:
         return {}
 
+    def configure_device_input(
+        self,
+        *,
+        policy: HardwareApprovalPolicy,
+        active_prompt: Callable[[], Optional[ApprovalPrompt]],
+        permission_handler: Callable[[Dict[str, object], PolicyDecision], None],
+    ) -> None:
+        return
+
 
 class DryRunPublisher(Publisher):
     def start(self) -> None:
@@ -204,6 +214,20 @@ class BlePublisher(Publisher):
                 "last_ble_error": self._last_ble_error,
                 "device_input": self._device_input.diagnostics(),
             }
+
+    def configure_device_input(
+        self,
+        *,
+        policy: HardwareApprovalPolicy,
+        active_prompt: Callable[[], Optional[ApprovalPrompt]],
+        permission_handler: Callable[[Dict[str, object], PolicyDecision], None],
+    ) -> None:
+        self._device_input = DeviceInputMonitor(
+            logger=log,
+            policy=policy,
+            active_prompt=active_prompt,
+            permission_handler=permission_handler,
+        )
 
     def _thread_main(self) -> None:
         try:
@@ -412,6 +436,20 @@ class SerialPublisher(Publisher):
                 "last_serial_error": self._last_serial_error,
                 "device_input": self._device_input.diagnostics(),
             }
+
+    def configure_device_input(
+        self,
+        *,
+        policy: HardwareApprovalPolicy,
+        active_prompt: Callable[[], Optional[ApprovalPrompt]],
+        permission_handler: Callable[[Dict[str, object], PolicyDecision], None],
+    ) -> None:
+        self._device_input = DeviceInputMonitor(
+            logger=log,
+            policy=policy,
+            active_prompt=active_prompt,
+            permission_handler=permission_handler,
+        )
 
     def _ensure_connected_locked(self) -> bool:
         if self._serial is not None:
