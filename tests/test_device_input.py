@@ -66,6 +66,20 @@ class DeviceInputMonitorTests(unittest.TestCase):
         self.assertNotIn("request-secret", str(diagnostics))
         self.assertNotIn("/Users/dylanmccavitt/private", str(diagnostics))
 
+    def test_permission_input_invokes_decision_handler(self):
+        prompt = ApprovalPrompt(prompt_id="request-1", kind=PromptKind.COMMAND, command="pwd")
+        handled = []
+        monitor = DeviceInputMonitor(
+            policy=HardwareApprovalPolicy(),
+            active_prompt=lambda: prompt,
+            permission_handler=lambda payload, decision: handled.append((payload, decision)),
+        )
+
+        monitor.feed_bytes(b'{"cmd":"permission","id":"request-1","decision":"deny"}\n')
+
+        self.assertEqual(handled[0][0]["id"], "request-1")
+        self.assertEqual(handled[0][1].outcome.value, "allow_deny")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -19,11 +19,13 @@ class DeviceInputMonitor:
         logger: Optional[Callable[[str], None]] = None,
         policy: Optional[HardwareApprovalPolicy] = None,
         active_prompt: Optional[Callable[[], Optional[ApprovalPrompt]]] = None,
+        permission_handler: Optional[Callable[[Dict[str, Any], PolicyDecision], None]] = None,
     ) -> None:
         self.max_line_bytes = max_line_bytes
         self._logger = logger
         self._policy = policy
         self._active_prompt = active_prompt
+        self._permission_handler = permission_handler
         self._buffer = bytearray()
         self._lock = threading.Lock()
         self._last_command_type: Optional[str] = None
@@ -130,6 +132,8 @@ class DeviceInputMonitor:
             active_prompt=active_prompt,
         )
         self._last_policy_decision = result.log_entry.to_dict()
+        if self._permission_handler is not None:
+            self._permission_handler(dict(payload), result)
 
     def _log(self, message: str) -> None:
         if self._logger is not None:

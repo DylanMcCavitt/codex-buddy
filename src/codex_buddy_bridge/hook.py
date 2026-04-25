@@ -11,6 +11,7 @@ from typing import Any, Mapping, Optional, TextIO
 
 DEFAULT_URL = "http://127.0.0.1:47833/hook"
 DEFAULT_TIMEOUT = 0.35
+DEFAULT_PERMISSION_TIMEOUT = 12.5
 
 
 def forward_payload(
@@ -18,7 +19,7 @@ def forward_payload(
     *,
     url: Optional[str] = None,
     timeout: Optional[float] = None,
-) -> None:
+) -> Mapping[str, Any]:
     envelope = {
         "received_at": time.time(),
         "hook": payload,
@@ -30,8 +31,12 @@ def forward_payload(
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=timeout or DEFAULT_TIMEOUT):
-        pass
+    with urllib.request.urlopen(req, timeout=timeout or DEFAULT_TIMEOUT) as response:
+        raw = response.read()
+    if not raw:
+        return {}
+    parsed = json.loads(raw.decode("utf-8"))
+    return parsed if isinstance(parsed, Mapping) else {}
 
 
 def main(stdin: Optional[TextIO] = None) -> int:
@@ -43,20 +48,30 @@ def main(stdin: Optional[TextIO] = None) -> int:
         return 0
 
     try:
-        timeout = float(os.environ.get("CODEX_BUDDY_HOOK_TIMEOUT", str(DEFAULT_TIMEOUT)))
+        timeout = _timeout_for_payload(payload)
     except ValueError:
         timeout = DEFAULT_TIMEOUT
 
     try:
-        forward_payload(
+        response = forward_payload(
             payload,
             url=os.environ.get("CODEX_BUDDY_HOOK_URL", DEFAULT_URL),
             timeout=timeout,
         )
+        output = response.get("hookSpecificOutput") if isinstance(response, Mapping) else None
+        if isinstance(output, Mapping):
+            json.dump({"hookSpecificOutput": output}, sys.stdout, separators=(",", ":"))
+            sys.stdout.write("\n")
     except (OSError, urllib.error.URLError, TimeoutError, ValueError):
         pass
 
     return 0
+
+
+def _timeout_for_payload(payload: Mapping[str, Any]) -> float:
+    if payload.get("hook_event_name") == "PermissionRequest":
+        return float(os.environ.get("CODEX_BUDDY_PERMISSION_TIMEOUT", str(DEFAULT_PERMISSION_TIMEOUT)))
+    return float(os.environ.get("CODEX_BUDDY_HOOK_TIMEOUT", str(DEFAULT_TIMEOUT)))
 
 
 if __name__ == "__main__":

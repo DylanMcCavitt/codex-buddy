@@ -39,7 +39,7 @@ HOOK_SPECS: Tuple[HookSpec, ...] = (
     HookSpec("SessionStart", matcher="startup|resume", status_message="Updating Codex Buddy"),
     HookSpec("UserPromptSubmit"),
     HookSpec("PreToolUse", matcher="Bash"),
-    HookSpec("PermissionRequest", matcher="Bash", status_message="Updating Codex Buddy"),
+    HookSpec("PermissionRequest", matcher="Bash", status_message="Updating Codex Buddy", timeout=15),
     HookSpec("PostToolUse", matcher="Bash"),
     HookSpec("Stop", timeout=5),
 )
