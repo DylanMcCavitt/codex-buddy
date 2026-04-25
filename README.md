@@ -3,9 +3,9 @@
 Repo-local Codex status bridge for Anthropic's Claude Desktop Buddy hardware
 reference project.
 
-The MVP keeps the upstream M5StickC Plus firmware mostly unchanged and adds a
-small Python bridge. Repo-local Codex hooks post lifecycle events to the bridge,
-and the bridge sends Claude-compatible heartbeat JSON to the device over USB
+The MVP keeps the upstream M5StickC Plus firmware protocol mostly unchanged and
+adds a small Python bridge. Repo-local Codex hooks post lifecycle events to the
+bridge, and the bridge sends compatible heartbeat JSON to the device over USB
 serial or BLE.
 
 This first slice is display-only. The device can show idle, working, waiting
@@ -61,6 +61,10 @@ To run BLE mode directly:
 ```bash
 python3 -m codex_buddy_bridge bridge --device-prefix Claude --device-prefix Codex --port 47833
 ```
+
+The default BLE bridge scan includes both `Codex-*` and `Claude-*` device names
+so reflashed Codex Buddy firmware and older upstream-branded firmware both
+remain discoverable during the transition.
 
 Run tests:
 
@@ -182,13 +186,19 @@ Issue execution follows the delivery conventions documented in
 
 ## Firmware
 
-The upstream firmware targets M5StickC Plus and PlatformIO:
+The firmware targets M5StickC Plus and PlatformIO. This port advertises as
+`Codex-XXXX` over BLE while preserving the upstream Nordic UART protocol and
+attribution files. Firmware-specific build, flash, erase, and on-device copy
+notes live in `firmware/claude-desktop-buddy/CODEX_BUDDY.md`.
 
 ```bash
 cd firmware/claude-desktop-buddy
 pio run
 pio run -t upload
 ```
+
+If `pio` is not on the shell `PATH`, use `python3 -m platformio run` from the
+firmware directory.
 
 If starting from a previously flashed device:
 
