@@ -170,6 +170,16 @@ Launchd stderr goes to `~/.codex-buddy/bridge.err.log`. The bridge still uses
 the same sanitized hook handling as foreground mode; if the service is stopped,
 Codex work is not blocked because the hook forwarder remains best-effort.
 
+## Delivery Workflow
+
+Issue execution follows the delivery conventions documented in
+`docs/workflow-playbook/README.md`.
+
+- Keep one issue per branch and one PR per issue.
+- Track issue packets in `docs/workflow-playbook/issues/`.
+- Update `docs/handoff-next-worker.md` at the end of each issue so the next
+  worker can continue without rediscovery.
+
 ## Firmware
 
 The upstream firmware targets M5StickC Plus and PlatformIO:
