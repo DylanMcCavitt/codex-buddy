@@ -3,10 +3,11 @@
 Date: 2026-04-26
 Current issue: AGE-302 in progress
 Branch: `feat/age-302-completion-identity`
+PR: https://github.com/DylanMcCavitt/codex-buddy/pull/9
 
 ## Status
 
-AGE-302 implementation is complete locally and verified.
+AGE-302 implementation is committed, pushed, and open for review in PR #9.
 
 - `Stop` publishes a `completed` snapshot with sanitized `identity.project` and
   hashed `identity.thread` when Codex supplies workspace/session fields.
@@ -25,7 +26,9 @@ AGE-302 implementation is complete locally and verified.
 
 ## Next
 
-- Review the diff, then commit and open/merge the AGE-302 PR if it looks good.
+- Review PR #9, then merge if it looks good.
+- After merge, sync the canonical `/Users/dylanmccavitt/codex-buddy` checkout
+  on `main` and refresh this handoff from merged state.
 
 ## Risks
 
