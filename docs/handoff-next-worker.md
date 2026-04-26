@@ -1,60 +1,57 @@
 # Codex Buddy Handoff
 
-Date: 2026-04-25
-Current issue: AGE-280 complete
-Branch: `feat/age-280-hardware-hook-decisions`
+Date: 2026-04-26
+Current issue: AGE-302 in progress
+Branch: `feat/age-302-completion-identity`
 
 ## Status
 
-AGE-280 routes hardware permission decisions back through supported Codex
-`PermissionRequest` hooks and is ready to merge.
+AGE-302 implementation is complete locally and verified.
 
-- Permission requests now publish a sanitized prompt id and coarse tool label to
-  the device.
-- Hardware deny/decline/cancel returns Codex hook `behavior: deny` for the
-  matching active request.
-- Hardware approve/accept/once returns Codex hook `behavior: allow` only when
-  `CODEX_BUDDY_HARDWARE_APPROVE=1` and the command is allow-listed by policy.
-- Policy-rejected hardware approve returns no hook decision and publishes an
-  `approve in Codex` display state.
-- Routed hardware approve/deny now clears the prompt on-device by publishing
-  `approved` or `denied`, then idles.
-- Stale or unknown device decisions are ignored by the policy.
+- `Stop` publishes a `completed` snapshot with sanitized `identity.project` and
+  hashed `identity.thread` when Codex supplies workspace/session fields.
+- Project identity uses only a cleaned workspace basename; thread identity is a
+  short hash. Full paths, transcript paths, prompts, commands, and raw session
+  ids stay off the device payload.
+- Permission prompts retain AGE-280 behavior while also carrying sanitized
+  identity when available.
+- Firmware parses identity, shows it on the Codex info page, treats `msg:
+  "completed"` as a completion state, and chirps once on a new completion
+  transition when sound is enabled.
+- Manual hardware verification passed on `/dev/cu.usbserial-7552A41038`:
+  `Stop` count reached 3, `/healthz` showed `msg: "completed"` with identity,
+  then returned to idle, and the device visibly showed the completion state.
+- README and a repo-local AGE-302 packet now document the behavior and checks.
 
 ## Next
 
-- Next product issue: AGE-302, completion alerts and project/thread identity.
-- Keep AGE-280 approval routing as a secondary capability for restricted Codex
-  sessions.
+- Review the diff, then commit and open/merge the AGE-302 PR if it looks good.
 
 ## Risks
 
-- The installed hook matcher remains Bash-only; README documents that Codex
-  supports `apply_patch` and MCP `PermissionRequest` matchers, but this repo
-  does not install those yet.
-- BLE remains less validated than USB serial.
+- Identity depends on Codex hook payloads including workspace/session fields;
+  tests cover the supported fields, and snapshots remain safe when fields are
+  absent.
 
 ## Files
 
-- `.codex/hooks.json`
-- `src/codex_buddy_bridge/ble.py`
-- `src/codex_buddy_bridge/device_input.py`
-- `src/codex_buddy_bridge/hook.py`
-- `src/codex_buddy_bridge/hooks_config.py`
+- `src/codex_buddy_bridge/state.py`
 - `src/codex_buddy_bridge/server.py`
-- `tests/test_device_input.py`
-- `tests/test_hook_script.py`
+- `firmware/claude-desktop-buddy/src/data.h`
+- `firmware/claude-desktop-buddy/src/main.cpp`
+- `tests/test_state.py`
 - `tests/test_server.py`
 - `README.md`
-- `docs/workflow-playbook/issues/AGE-280-hardware-hook-decisions.md`
+- `docs/workflow-playbook/issues/AGE-302-completion-alerts-project-identity.md`
 - `docs/handoff-next-worker.md`
 
 ## Checks
 
-- `PYTHONPATH=src python3 -m unittest discover -s tests -v` passed: 50 tests.
+- `PYTHONPATH=src python3 -m unittest discover -s tests -v` passed: 53 tests.
 - `python3 -m py_compile src/codex_buddy_bridge/*.py .codex/hooks/codex_buddy_hook.py tests/*.py` passed.
 - `python3 -m json.tool .codex/hooks.json >/dev/null` passed.
 - `git diff --check` passed.
-- Manual USB serial synthetic `PermissionRequest` reached the M5StickC Plus;
-  hardware deny reached the bridge and routed through the policy. The clear
-  behavior was fixed afterward and covered by `tests/test_server.py`.
+- `python3 -m platformio run` passed in `firmware/claude-desktop-buddy`.
+- Manual hardware completion check passed: bridge connected over serial,
+  lifecycle hooks reached the bridge, `Stop` incremented, `/healthz` captured
+  `completed` with identity, and hardware displayed the completion state.

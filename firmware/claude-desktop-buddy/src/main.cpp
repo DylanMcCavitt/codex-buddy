@@ -107,6 +107,7 @@ static void wake() {
   if (dimmed) { applyBrightness(); dimmed = false; }
 }
 bool     responseSent = false;
+bool     lastCompletedAlert = false;
 
 static void beep(uint16_t freq, uint16_t dur) {
   if (settings().sound) M5.Beep.tone(freq, dur);
@@ -577,6 +578,8 @@ void drawInfo() {
   } else if (infoPage == 2) {
     _infoHeader(p, y, "CODEX", infoPage);
     spr.setTextColor(p.textDim, p.bg);
+    if (tama.projectLabel[0]) ln("  project  %.18s", tama.projectLabel);
+    if (tama.threadLabel[0])  ln("  thread   %.18s", tama.threadLabel);
     ln("  sessions  %u", tama.sessionsTotal);
     ln("  running   %u", tama.sessionsRunning);
     ln("  waiting   %u", tama.sessionsWaiting);
@@ -994,6 +997,12 @@ void loop() {
   dataPoll(&tama);
   if (statsPollLevelUp()) triggerOneShot(P_CELEBRATE, 3000);
   baseState = derive(tama);
+  if (tama.recentlyCompleted && !lastCompletedAlert) {
+    wake();
+    triggerOneShot(P_CELEBRATE, 2500);
+    beep(1800, 70);
+  }
+  lastCompletedAlert = tama.recentlyCompleted;
 
   // After waking the screen, hold sleep for 12s so users see the wake-up
   // animation. Urgent states (attention, celebrate, busy) override this.

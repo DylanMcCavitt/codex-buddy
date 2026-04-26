@@ -25,6 +25,7 @@ from .state import (
     hook_event_name,
     hook_payload,
     known_hook_events,
+    sanitized_identity,
     sanitized_preview,
     snapshot_for_hook,
 )
@@ -196,7 +197,11 @@ class BuddyDaemon:
         waiter = PermissionWaiter(prompt=prompt)
         with self._permission_condition:
             self._active_permission = waiter
-        snapshot = _permission_snapshot(prompt.prompt_id, _safe_tool_name(raw_hook.get("tool_name")))
+        snapshot = _permission_snapshot(
+            prompt.prompt_id,
+            _safe_tool_name(raw_hook.get("tool_name")),
+            sanitized_identity(payload),
+        )
         self.publish(snapshot, hook_event=_safe_hook_event_name(payload))
         return snapshot, waiter
 
@@ -321,18 +326,31 @@ def _safe_tool_name(value: object) -> str:
     return "Codex"
 
 
-def _permission_snapshot(prompt_id: str, tool_name: str) -> Snapshot:
+def _permission_snapshot(
+    prompt_id: str,
+    tool_name: str,
+    identity: Optional[Dict[str, str]] = None,
+) -> Snapshot:
+    entries = ["approval needed", "A approve if allowed", "B deny"]
+    if identity:
+        project = identity.get("project")
+        thread = identity.get("thread")
+        if project:
+            entries.append(f"project {project}")
+        if thread:
+            entries.append(thread)
     return Snapshot(
         total=1,
         running=0,
         waiting=1,
         msg="approval needed",
-        entries=["approval needed", "A approve if allowed", "B deny"],
+        entries=entries[:8],
         prompt={
             "id": prompt_id,
             "tool": tool_name,
             "hint": "A approve / B deny",
         },
+        identity=identity,
     )
 
 

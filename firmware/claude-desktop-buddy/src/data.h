@@ -16,6 +16,8 @@ struct TamaState {
   char     lines[8][92];
   uint8_t  nLines;
   uint16_t lineGen;          // bumps when lines change — lets UI reset scroll
+  char     projectLabel[24];  // sanitized bridge-provided project/worktree label
+  char     threadLabel[20];   // sanitized bridge-provided thread label
   char     promptId[40];     // pending permission request ID; empty = no prompt
   char     promptTool[20];
   char     promptHint[44];
@@ -93,12 +95,21 @@ static void _applyJson(const char* line, TamaState* out) {
   out->sessionsTotal     = doc["total"]     | out->sessionsTotal;
   out->sessionsRunning   = doc["running"]   | out->sessionsRunning;
   out->sessionsWaiting   = doc["waiting"]   | out->sessionsWaiting;
-  out->recentlyCompleted = doc["completed"] | false;
   uint32_t bridgeTokens = doc["tokens"] | 0;
   if (doc["tokens"].is<uint32_t>()) statsOnBridgeTokens(bridgeTokens);
   out->tokensToday = doc["tokens_today"] | out->tokensToday;
   const char* m = doc["msg"];
   if (m) { strncpy(out->msg, m, sizeof(out->msg)-1); out->msg[sizeof(out->msg)-1]=0; }
+  out->recentlyCompleted = (doc["completed"] | false) || (m && strcmp(m, "completed") == 0);
+  JsonObject ident = doc["identity"];
+  if (!ident.isNull()) {
+    const char* project = ident["project"];
+    const char* thread = ident["thread"];
+    strncpy(out->projectLabel, project ? project : "", sizeof(out->projectLabel)-1);
+    out->projectLabel[sizeof(out->projectLabel)-1]=0;
+    strncpy(out->threadLabel, thread ? thread : "", sizeof(out->threadLabel)-1);
+    out->threadLabel[sizeof(out->threadLabel)-1]=0;
+  }
   JsonArray la = doc["entries"];
   if (!la.isNull()) {
     uint8_t n = 0;
@@ -180,5 +191,6 @@ inline void dataPoll(TamaState* out) {
     out->recentlyCompleted=false; out->lastUpdated=now;
     strncpy(out->msg, "No Codex connected", sizeof(out->msg)-1);
     out->msg[sizeof(out->msg)-1]=0;
+    out->projectLabel[0]=0; out->threadLabel[0]=0;
   }
 }
