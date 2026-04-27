@@ -26,9 +26,12 @@ device can show which task finished and play a completion chirp.
 
 ## Setup
 
-Install the bridge:
+Use a virtual environment for a fresh checkout, then install the bridge:
 
 ```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python3 -m pip install --upgrade pip
 python3 -m pip install -e .
 ```
 
