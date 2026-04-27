@@ -1,77 +1,82 @@
 # Codex Buddy Handoff
 
 Date: 2026-04-27
-Current issue: none active
-Branch: `feat/quiet-codex-buddy-hooks`
+Current issue: AGE-284
+Branch: `feat/age-284-release-validation`
 Last merged PR: https://github.com/DylanMcCavitt/codex-buddy/pull/9
 
 ## Status
 
-AGE-302 is merged into `main` via PR #9.
+AGE-284 end-to-end validation has been run and documented in
+`docs/handoffs/AGE-284-release-validation.md`.
 
-- `Stop` publishes a `completed` snapshot with sanitized `identity.project` and
-  hashed `identity.thread` when Codex supplies workspace/session fields.
-- Project identity uses only a cleaned workspace basename; thread identity is a
-  short hash. Full paths, transcript paths, prompts, commands, and raw session
-  ids stay off the device payload.
-- Permission prompts retain AGE-280 behavior while also carrying sanitized
-  identity when available.
-- Firmware parses identity, shows it on the Codex info page, treats `msg:
-  "completed"` as a completion state, and chirps once on a new completion
-  transition when sound is enabled.
-- Manual hardware verification passed on `/dev/cu.usbserial-7552A41038`:
-  `Stop` count reached 3, `/healthz` showed `msg: "completed"` with identity,
-  then returned to idle, and the device visibly showed the completion state.
-- README and a repo-local AGE-302 packet now document the behavior and checks.
-- Quiet hook side fix is committed on this branch: Codex Buddy no longer
-  installs managed `PreToolUse` or `PostToolUse` hooks by default, and the live
-  `~/.codex/hooks.json` on this machine was reinstalled with the quiet profile.
+What passed:
+
+- Fresh setup path now works from README when using a venv, upgrading `pip`,
+  installing editable mode, and running tests.
+- `setup.py` was added so legacy editable-install tooling has a setuptools
+  fallback.
+- `PYTHONPATH=src python3 -m unittest discover -s tests -v` passed: 54 tests.
+- `python3 -m py_compile setup.py src/codex_buddy_bridge/*.py
+  .codex/hooks/codex_buddy_hook.py tests/*.py` passed.
+- `.codex/hooks.json` and `~/.codex/hooks.json` validate as JSON.
+- Real `~/.codex/hooks.json` install/uninstall was verified with backup and
+  restore.
+- Foreground serial bridge connected to `/dev/cu.usbserial-7552A41038` and
+  accepted non-repo hook payloads from `/tmp`.
+- Background LaunchAgent install/status/hook/uninstall passed.
+- `python3 -m platformio run` passed.
+- Firmware upload to `/dev/cu.usbserial-7552A41038` passed.
+
+Release limits:
+
+- AGE-281, AGE-282, and AGE-283 are still `Todo` in Linear.
+- BLE is not validated: `BleakScanner.discover(...)` aborts inside the
+  CoreBluetooth scanner on this machine.
+- This thread could not visually confirm the device screen, press hardware
+  buttons, or physically unplug/replug the device.
 
 ## Next
 
-- Merge or otherwise reconcile the quiet hook side fix if you want it durable.
-- Start AGE-284: end-to-end release validation for Codex Buddy.
-- Begin from the canonical checkout on `main` after branch state is clean.
-- Before coding, verify Linear state. AGE-277 still appeared as `Todo` in
-  Linear even though prior repo history says the prompt-alias work landed; treat
-  that as status cleanup unless code review proves otherwise.
+- Review the AGE-284 branch and decide whether the validation handoff is enough
+  to close AGE-284 as "validated with known limits" or whether user-observed
+  hardware button/unplug checks should happen first.
+- If closing AGE-284, leave AGE-281, AGE-282, and AGE-283 open as separate
+  blockers/follow-ups rather than folding them into this validation branch.
+- If continuing validation, run:
+  - visual device confirmation after a `UserPromptSubmit` and `Stop` event
+  - physical unplug/replug while `make bridge-serial` is running
+  - hardware deny on a real `PermissionRequest`
+  - optional safe approve with `CODEX_BUDDY_HARDWARE_APPROVE=1` and an
+    allow-listed command
 
 ## Risks
 
-- Identity depends on Codex hook payloads including workspace/session fields;
-  tests cover the supported fields, and snapshots remain safe when fields are
-  absent.
-- Already-open Codex sessions may cache hook configuration. If quiet-hook
-  testing still shows `PreToolUse` or `PostToolUse` rows, start a new Codex
-  session after the `~/.codex/hooks.json` update.
+- The bridge ignores firmware boot chatter on serial as sanitized malformed
+  device input; this is handled, but it means `parse_errors` can be non-zero at
+  startup.
+- The user-level hooks were restored after validation, but long-lived Codex
+  sessions may still cache old hook state until a new session starts.
+- BLE needs AGE-281 before it can be called release-ready.
 
 ## Files
 
-- `src/codex_buddy_bridge/state.py`
-- `src/codex_buddy_bridge/server.py`
-- `firmware/claude-desktop-buddy/src/data.h`
-- `firmware/claude-desktop-buddy/src/main.cpp`
-- `tests/test_state.py`
-- `tests/test_server.py`
 - `README.md`
-- `docs/workflow-playbook/issues/AGE-302-completion-alerts-project-identity.md`
-- `.codex/hooks.json`
-- `src/codex_buddy_bridge/hooks_config.py`
-- `tests/test_hooks_config.py`
+- `setup.py`
+- `docs/workflow-playbook/issues/AGE-284-end-to-end-release-validation.md`
+- `docs/handoffs/AGE-284-release-validation.md`
 - `docs/handoff-next-worker.md`
 
 ## Checks
 
-- `PYTHONPATH=src python3 -m unittest tests.test_hooks_config -v` passed: 8 tests.
 - `PYTHONPATH=src python3 -m unittest discover -s tests -v` passed: 54 tests.
-- `python3 -m py_compile src/codex_buddy_bridge/*.py .codex/hooks/codex_buddy_hook.py tests/*.py` passed.
+- `python3 -m py_compile setup.py src/codex_buddy_bridge/*.py .codex/hooks/codex_buddy_hook.py tests/*.py` passed.
 - `python3 -m json.tool .codex/hooks.json >/dev/null` passed.
 - `python3 -m json.tool ~/.codex/hooks.json >/dev/null` passed.
-- `git diff --check` passed.
-- `PYTHONPATH=src python3 -m codex_buddy_bridge hooks install --dry-run --config /tmp/codex-buddy-quiet-hooks.json` showed only `SessionStart`, `UserPromptSubmit`, `PermissionRequest`, and `Stop`.
-- `PYTHONPATH=src python3 -m codex_buddy_bridge hooks install --source-dir /Users/dylanmccavitt/codex-buddy/src` updated `~/.codex/hooks.json`, removed old managed entries, and left no `PreToolUse`/`PostToolUse` entries.
-- `python3 -m platformio run` passed in `firmware/claude-desktop-buddy` during AGE-302.
-- Manual hardware completion check passed during AGE-302: bridge connected over
-  serial, lifecycle hooks reached the bridge, `Stop` incremented, `/healthz`
-  captured `completed` with identity, and hardware displayed the completion
-  state.
+- Clean copy setup passed: venv, `pip` upgrade, editable install, and 54 tests.
+- Real global hook install/uninstall passed and original config was restored.
+- Foreground serial bridge passed on `/dev/cu.usbserial-7552A41038`.
+- LaunchAgent install/status/non-repo hook/uninstall passed.
+- `python3 -m platformio run` passed.
+- `python3 -m platformio run -t upload --upload-port /dev/cu.usbserial-7552A41038` passed.
+- BLE scan failed with a CoreBluetooth `bleak` abort; see AGE-281.
