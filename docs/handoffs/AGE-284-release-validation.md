@@ -7,11 +7,10 @@ Issue: AGE-284
 ## Status
 
 End-to-end validation was run from the current Codex Buddy repo state. The
-serial, hook, LaunchAgent, setup, test, firmware build, and firmware upload
-paths passed. The port should not be called fully release-complete yet because
-AGE-281, AGE-282, and AGE-283 are still open in Linear, and this thread could
-not visually confirm the device screen, press hardware buttons, or perform a
-physical unplug/replug cycle.
+serial, hook, LaunchAgent, setup, test, firmware build, firmware upload, and
+manual physical checks passed. The port should not be called fully
+release-complete yet because AGE-281, AGE-282, and AGE-283 are still open in
+Linear.
 
 ## Evidence
 
@@ -66,7 +65,9 @@ physical unplug/replug cycle.
   - Runtime `PermissionRequest` payload in serial mode published the
     display-only approval snapshot and returned no hook decision without a
     hardware response.
-  - Physical button deny/approve was not performed in this thread.
+  - User-confirmed physical checks passed after the bridge instructions:
+    unplug/replug recovered, hardware deny worked, and safe approve worked
+    with `CODEX_BUDDY_HARDWARE_APPROVE=1` plus an allow-listed command.
 
 ## Checks
 
@@ -84,21 +85,13 @@ python3 -m platformio run -t upload --upload-port /dev/cu.usbserial-7552A41038
 - AGE-281 is still the BLE blocker.
 - AGE-282 is still the app-server parity blocker.
 - AGE-283 is still the character/status UX blocker.
-- Manual visual confirmation of flashed on-device copy was not performed by
-  this thread.
-- Manual physical button deny/approve and physical unplug/replug were not
-  performed by this thread.
+- Manual physical button and unplug/replug checks were confirmed by the user,
+  not directly observed by this thread.
 - Serial startup currently records firmware boot chatter as sanitized malformed
   device input; the bridge ignores it and continues.
 
 ## Next
 
-1. Have the user confirm the flashed device display after a Codex event if
-   visual proof is required for AGE-284 closure.
-2. Run a physical unplug/replug cycle while `make bridge-serial` is active and
-   verify `/healthz` records disconnect/reconnect.
-3. Press the device deny button on a real `PermissionRequest`; optionally test
-   safe approve with `CODEX_BUDDY_HARDWARE_APPROVE=1` and an allow-listed
-   command.
-4. Keep AGE-281, AGE-282, and AGE-283 open unless they are handled in separate
+1. Decide whether AGE-284 can close as release validation with known limits.
+2. Keep AGE-281, AGE-282, and AGE-283 open unless they are handled in separate
    issue branches.

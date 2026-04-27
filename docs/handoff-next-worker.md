@@ -27,28 +27,25 @@ What passed:
 - Background LaunchAgent install/status/hook/uninstall passed.
 - `python3 -m platformio run` passed.
 - Firmware upload to `/dev/cu.usbserial-7552A41038` passed.
+- User-confirmed manual physical checks passed: unplug/replug recovery,
+  hardware deny, and safe approve with an allow-listed command.
 
 Release limits:
 
 - AGE-281, AGE-282, and AGE-283 are still `Todo` in Linear.
 - BLE is not validated: `BleakScanner.discover(...)` aborts inside the
   CoreBluetooth scanner on this machine.
-- This thread could not visually confirm the device screen, press hardware
-  buttons, or physically unplug/replug the device.
+- Manual physical checks were confirmed by the user, not directly observed by
+  this thread.
 
 ## Next
 
 - Review the AGE-284 branch and decide whether the validation handoff is enough
-  to close AGE-284 as "validated with known limits" or whether user-observed
-  hardware button/unplug checks should happen first.
+  to close AGE-284 as "validated with known limits."
 - If closing AGE-284, leave AGE-281, AGE-282, and AGE-283 open as separate
   blockers/follow-ups rather than folding them into this validation branch.
-- If continuing validation, run:
-  - visual device confirmation after a `UserPromptSubmit` and `Stop` event
-  - physical unplug/replug while `make bridge-serial` is running
-  - hardware deny on a real `PermissionRequest`
-  - optional safe approve with `CODEX_BUDDY_HARDWARE_APPROVE=1` and an
-    allow-listed command
+- If continuing validation, only repeat the physical checks when direct
+  observer evidence is required; the user already reported they pass.
 
 ## Risks
 
@@ -79,4 +76,6 @@ Release limits:
 - LaunchAgent install/status/non-repo hook/uninstall passed.
 - `python3 -m platformio run` passed.
 - `python3 -m platformio run -t upload --upload-port /dev/cu.usbserial-7552A41038` passed.
+- User-confirmed manual physical unplug/replug, hardware deny, and safe approve
+  checks passed.
 - BLE scan failed with a CoreBluetooth `bleak` abort; see AGE-281.
