@@ -96,9 +96,11 @@ workspace path, and the `thread` value is a short hash such as
 `thread-1a2b3c4d`. Full paths, transcript paths, raw prompts, session ids, and
 commands are not sent to the device.
 
-Codex hooks are repo-local in `.codex/hooks.json` for development. The hook
-script exits successfully if the bridge is not running, so normal Codex work is
-not blocked.
+Codex hooks are repo-local in `.codex/hooks.json` for development. The default
+hook profile keeps high-frequency tool lifecycle hooks disabled, so Codex does
+not add `PreToolUse` and `PostToolUse` rows around every Bash tool call. The
+hook script exits successfully if the bridge is not running, so normal Codex
+work is not blocked.
 
 ## Hardware Approval Policy
 
@@ -187,6 +189,11 @@ User-level hooks are opt-in. Installing them writes Codex Buddy managed entries
 to `~/.codex/hooks.json` so Codex lifecycle events from any workspace can reach
 the local bridge.
 
+The managed default is intentionally quiet: `SessionStart`, `UserPromptSubmit`,
+`PermissionRequest`, and `Stop`. Re-running install replaces older Codex Buddy
+managed `PreToolUse` and `PostToolUse` entries, which were useful for early
+debugging but create visible noise in Codex sessions.
+
 Preview the exact global change first:
 
 ```bash
@@ -224,8 +231,8 @@ To verify from another workspace:
    curl -fsS http://127.0.0.1:47833/healthz
    ```
 
-Expected behavior: `diagnostics.event_counts` increments for a hook such as
-`UserPromptSubmit`, `PreToolUse`, or `PostToolUse`, and the published device
+Expected behavior: `diagnostics.event_counts` increments for a managed hook such
+as `UserPromptSubmit`, `PermissionRequest`, or `Stop`, and the published device
 snapshot remains sanitized.
 
 To test completion alerts, keep the bridge running and finish a Codex task. The

@@ -61,6 +61,32 @@ class UserHookConfigTests(unittest.TestCase):
         self.assertEqual(installed, len(HOOK_SPECS))
         self.assertEqual(removed, len(HOOK_SPECS))
 
+    def test_install_removes_legacy_tool_lifecycle_hooks(self):
+        command = build_hook_command(python="/usr/bin/python3", source_dir=Path("/tool/src"))
+        legacy = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [{"type": "command", "command": command}],
+                    }
+                ],
+                "PostToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [{"type": "command", "command": command}],
+                    }
+                ],
+            }
+        }
+
+        config, installed, removed = install_user_hooks(legacy, command=command)
+
+        self.assertEqual(installed, len(HOOK_SPECS))
+        self.assertEqual(removed, 2)
+        self.assertNotIn("PreToolUse", config["hooks"])
+        self.assertNotIn("PostToolUse", config["hooks"])
+
     def test_uninstall_removes_only_managed_hooks(self):
         command = build_hook_command(python="/usr/bin/python3", source_dir=Path("/tool/src"))
         installed, _, _ = install_user_hooks(
