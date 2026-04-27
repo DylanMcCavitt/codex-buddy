@@ -1,13 +1,13 @@
 # Codex Buddy Handoff
 
-Date: 2026-04-26
-Current issue: AGE-302 in progress
-Branch: `feat/age-302-completion-identity`
-PR: https://github.com/DylanMcCavitt/codex-buddy/pull/9
+Date: 2026-04-27
+Current issue: none active
+Branch: `main`
+Last merged PR: https://github.com/DylanMcCavitt/codex-buddy/pull/9
 
 ## Status
 
-AGE-302 implementation is committed, pushed, and open for review in PR #9.
+AGE-302 is merged into `main` via PR #9.
 
 - `Stop` publishes a `completed` snapshot with sanitized `identity.project` and
   hashed `identity.thread` when Codex supplies workspace/session fields.
@@ -26,9 +26,11 @@ AGE-302 implementation is committed, pushed, and open for review in PR #9.
 
 ## Next
 
-- Review PR #9, then merge if it looks good.
-- After merge, sync the canonical `/Users/dylanmccavitt/codex-buddy` checkout
-  on `main` and refresh this handoff from merged state.
+- Start AGE-284: end-to-end release validation for Codex Buddy.
+- Begin from this canonical checkout on `main`.
+- Before coding, verify Linear state. AGE-277 still appeared as `Todo` in
+  Linear even though prior repo history says the prompt-alias work landed; treat
+  that as status cleanup unless code review proves otherwise.
 
 ## Risks
 
