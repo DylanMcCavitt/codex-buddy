@@ -299,6 +299,51 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(body["diagnostics"]["publisher"]["connection_state"], "connected")
         self.assertNotIn("prompt text must not be reported", str(body["diagnostics"]))
 
+    def test_stop_publishes_completion_snapshot_with_sanitized_identity(self):
+        publisher = RecordingPublisher()
+        daemon = BuddyDaemon(publisher)
+
+        snapshot = daemon.handle_hook(
+            {
+                "hook_event_name": "Stop",
+                "cwd": "/Users/dylanmccavitt/private/worktrees/codex-buddy",
+                "session_id": "session-secret",
+                "transcript_path": "/Users/dylanmccavitt/private/transcript.jsonl",
+            }
+        )
+
+        payload = snapshot.to_wire()
+        self.assertEqual(payload["msg"], "completed")
+        self.assertEqual(payload["identity"]["project"], "codex-buddy")
+        self.assertRegex(payload["identity"]["thread"], r"^thread-[0-9a-f]{8}$")
+        self.assertEqual(publisher.payloads[-1], payload)
+        self.assertNotIn("/Users/dylanmccavitt", str(payload))
+        self.assertNotIn("session-secret", str(payload))
+        self.assertNotIn("transcript.jsonl", str(payload))
+
+    def test_permission_prompt_keeps_identity_without_leaking_paths(self):
+        publisher = RecordingPublisher()
+        daemon = BuddyDaemon(publisher, permission_timeout=0.01)
+
+        snapshot, hook_response = daemon.handle_hook_with_response(
+            {
+                "hook_event_name": "PermissionRequest",
+                "cwd": "/Users/dylanmccavitt/private/codex-buddy",
+                "session_id": "session-secret",
+                "tool_name": "Bash",
+                "tool_input": {"command": "secret command should not leave daemon"},
+            }
+        )
+
+        payload = snapshot.to_wire()
+        self.assertIsNone(hook_response)
+        self.assertEqual(payload["waiting"], 1)
+        self.assertEqual(payload["identity"]["project"], "codex-buddy")
+        self.assertIn("prompt", payload)
+        self.assertNotIn("/Users/dylanmccavitt", str(payload))
+        self.assertNotIn("session-secret", str(payload))
+        self.assertNotIn("secret command", str(payload))
+
 
 if __name__ == "__main__":
     unittest.main()

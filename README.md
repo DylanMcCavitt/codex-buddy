@@ -11,7 +11,9 @@ serial or BLE.
 The device can show idle, working, waiting for approval, and completed states.
 For supported Codex `PermissionRequest` hooks, the buddy can deny from hardware
 and can approve only when the local hardware approval policy explicitly allows
-the request.
+the request. When Codex emits `Stop`, the bridge publishes a short completed
+state with a sanitized project/worktree label and hashed thread label so the
+device can show which task finished and play a completion chirp.
 
 ## Layout
 
@@ -87,6 +89,12 @@ include sanitized device-input counters for newline-delimited JSON sent back by
 the buddy, including the last command type, command counts, parse errors, and
 oversized input drops. These diagnostics are local to the HTTP health check;
 they are not added to the device heartbeat payload.
+
+Completion snapshots include an `identity` object when Codex supplies workspace
+or session fields. The `project` value is the sanitized basename of the
+workspace path, and the `thread` value is a short hash such as
+`thread-1a2b3c4d`. Full paths, transcript paths, raw prompts, session ids, and
+commands are not sent to the device.
 
 Codex hooks are repo-local in `.codex/hooks.json` for development. The hook
 script exits successfully if the bridge is not running, so normal Codex work is
@@ -219,6 +227,11 @@ To verify from another workspace:
 Expected behavior: `diagnostics.event_counts` increments for a hook such as
 `UserPromptSubmit`, `PreToolUse`, or `PostToolUse`, and the published device
 snapshot remains sanitized.
+
+To test completion alerts, keep the bridge running and finish a Codex task. The
+latest `/healthz` `current` snapshot should show `msg: "completed"` with a
+sanitized `identity`, and flashed hardware should briefly celebrate and chirp if
+sound is enabled.
 
 ## Background LaunchAgent
 

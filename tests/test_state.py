@@ -1,6 +1,6 @@
 import unittest
 
-from codex_buddy_bridge.state import hook_event_name, snapshot_for_hook
+from codex_buddy_bridge.state import hook_event_name, sanitized_identity, snapshot_for_hook
 
 
 class SnapshotMappingTests(unittest.TestCase):
@@ -38,10 +38,38 @@ class SnapshotMappingTests(unittest.TestCase):
         self.assertIsNone(idle_delay)
 
     def test_stop_briefly_completes_then_idles(self):
-        snapshot, idle_delay = snapshot_for_hook({"hook_event_name": "Stop"})
+        snapshot, idle_delay = snapshot_for_hook(
+            {
+                "hook_event_name": "Stop",
+                "cwd": "/Users/dylanmccavitt/.codex/worktrees/ea7a/codex-buddy",
+                "session_id": "secret-session-id",
+            }
+        )
 
-        self.assertEqual(snapshot.to_wire()["msg"], "completed")
+        payload = snapshot.to_wire()
+        self.assertEqual(payload["msg"], "completed")
+        self.assertEqual(payload["identity"]["project"], "codex-buddy")
+        self.assertRegex(payload["identity"]["thread"], r"^thread-[0-9a-f]{8}$")
+        self.assertIn("project codex-buddy", payload["entries"])
+        self.assertNotIn("/Users/dylanmccavitt", str(payload))
+        self.assertNotIn("secret-session-id", str(payload))
         self.assertEqual(idle_delay, 2.0)
+
+    def test_sanitized_identity_uses_basename_and_hashed_thread(self):
+        identity = sanitized_identity(
+            {
+                "hook": {
+                    "hook_event_name": "UserPromptSubmit",
+                    "cwd": "/private/tmp/My Project!",
+                    "transcript_path": "/secret/transcripts/raw.jsonl",
+                }
+            }
+        )
+
+        self.assertEqual(identity["project"], "My-Project")
+        self.assertRegex(identity["thread"], r"^thread-[0-9a-f]{8}$")
+        self.assertNotIn("/private/tmp", str(identity))
+        self.assertNotIn("raw.jsonl", str(identity))
 
     def test_enveloped_hook_event_name(self):
         self.assertEqual(
